@@ -1,3 +1,10 @@
+## Branch of ATISS with Docker container
+
+To build the image run
+```
+docker build --build-arg USER_UID=$(id -u) -t atiss .
+```
+
 ## ATISS: Autoregressive Transformers for Indoor Scene Synthesis
 <p>
     <img width="240" alt="Example 1" src="img/room_1.gif"/>
