@@ -155,7 +155,7 @@ def main(argv):
     scene.camera_target = args.camera_target
     scene.camera_position = args.camera_position
     scene.light = args.camera_position
-    room_side = 3
+    room_side = 3.1
     scene.camera_matrix = Matrix44.orthogonal_projection(
         left=-room_side,
         right=room_side,
