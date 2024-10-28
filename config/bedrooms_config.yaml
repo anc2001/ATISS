@@ -1,10 +1,10 @@
 data:
     dataset_type: "cached_threedfront"
     encoding_type: "cached_autoregressive_wocm"
-    dataset_directory: "/media/paschalidoud/goproorgohome/3D_FRONT_processed/bedrooms"
-    annotation_file: "../config/bedroom_threed_front_splits.csv"
-    path_to_invalid_scene_ids: "../config/invalid_threed_front_rooms.txt"
-    path_to_invalid_bbox_jids: "../config/black_list.txt"
+    dataset_directory: "/home/achang/scenesynth/3DFRONT/ATISS_bedroom"
+    annotation_file: "/home/achang/scenesynth/ATISS/config/bedroom_threed_front_scenesynth_splits.csv"
+    path_to_invalid_scene_ids: "config/invalid_threed_front_rooms.txt"
+    path_to_invalid_bbox_jids: "/home/achang/scenesynth/ATISS/config/black_list_temp.txt"
     augmentations: ["rotations"]
     filter_fn: "threed_front_bedroom"
     train_stats: "dataset_stats.txt"

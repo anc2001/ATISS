@@ -112,7 +112,7 @@ def main(argv):
 
     config = load_config(args.config_file)
 
-    raw_dataset, dataset = get_dataset_raw_and_encoded(
+    _ , dataset = get_dataset_raw_and_encoded(
         config["data"],
         filter_fn=filter_function(
             config["data"], split=config["training"].get("splits", ["train", "val"])
