@@ -450,6 +450,7 @@ class AutoregressiveTransformer(BaseAutoregressiveTransformer):
         boxes,
         room_mask, 
         class_label,
+        query_sizes,
         device="cpu"
     ):
         # Shallow copy the input dictionary
@@ -478,7 +479,7 @@ class AutoregressiveTransformer(BaseAutoregressiveTransformer):
 
         # Get the dmll params for the translations
         return self.hidden2output.pred_dmll_params_translation(
-            F, class_label
+            F, class_label, query_sizes, 
         )
 
 

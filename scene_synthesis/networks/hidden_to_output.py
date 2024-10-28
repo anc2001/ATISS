@@ -242,7 +242,7 @@ class AutoregressiveDMLL(Hidden2Output):
 
         return class_probs
 
-    def pred_dmll_params_translation(self, x, class_labels):
+    def pred_dmll_params_translation(self, x, class_labels, query_sizes):
         def dmll_params_from_pred(pred):
             assert len(pred.shape) == 2
 
@@ -261,9 +261,14 @@ class AutoregressiveDMLL(Hidden2Output):
 
         c = self.fc_class_labels(class_labels)
         cf = torch.cat([x, c], dim=-1)
-        t_x = self.centroid_layer_x(cf).reshape(B*L, -1)
-        t_y = self.centroid_layer_y(cf).reshape(B*L, -1)
-        t_z = self.centroid_layer_z(cf).reshape(B*L, -1)
+        sx = self.pe_trans_x(query_sizes[:, :, 0:1])
+        sy = self.pe_trans_y(query_sizes[:, :, 1:2])
+        sz = self.pe_trans_z(query_sizes[:, :, 2:3])
+        sf = torch.cat([cf, sx, sy, sz], dim=-1)
+
+        t_x = self.centroid_layer_x(sf).reshape(B*L, -1)
+        t_y = self.centroid_layer_y(sf).reshape(B*L, -1)
+        t_z = self.centroid_layer_z(sf).reshape(B*L, -1)
 
         return dmll_params_from_pred(t_x), dmll_params_from_pred(t_y),\
             dmll_params_from_pred(t_z)

@@ -67,9 +67,6 @@ def main(argv):
         "path_to_pickled_3d_futute_models", help="Path to the 3D-FUTURE model meshes"
     )
     parser.add_argument(
-        "path_to_floor_plan_textures", help="Path to floor texture images"
-    )
-    parser.add_argument(
         "annotated_info_path",
         help="Path to annotated info",
     )
@@ -276,13 +273,20 @@ def main(argv):
         query_category = THREED_FRONT_BEDROOM_FURNITURE[
             subscene_info["query_info"]["model_info"]["category"]
         ]
+        query_sizes = subscene_info["query_info"]["size"]
+        query_sizes = dataset.scale(
+            query_sizes, min_bound_size, max_bound_size
+        )
         query_class_label = torch.from_numpy(classes == query_category)
         query_class_label = query_class_label.float().view(1, 1, len(classes)).to(device)
+        query_sizes = torch.from_numpy(query_sizes)
+        query_sizes = query_sizes.float().view(1, 1, 3).to(device)
 
         with torch.no_grad():
             dmll_params = network.distribution_translations(
                 room_mask=room_mask,
                 class_label=query_class_label,
+                query_sizes=query_sizes,
                 boxes=boxes,
                 device=device,
             )
