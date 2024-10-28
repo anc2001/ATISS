@@ -71,10 +71,25 @@ class AutoregressiveDMLL(Hidden2Output):
         self.pe_trans_x = FixedPositionalEncoding(proj_dims=64)
         self.pe_trans_y = FixedPositionalEncoding(proj_dims=64)
         self.pe_trans_z = FixedPositionalEncoding(proj_dims=64)
-        # Positional embedding for the target angle
-        self.pe_angle_z = FixedPositionalEncoding(proj_dims=64)
+        # Position embedding for size 
+        self.pe_sizes_x = FixedPositionalEncoding(proj_dims=64)
+        self.pe_sizes_y = FixedPositionalEncoding(proj_dims=64)
+        self.pe_sizes_z = FixedPositionalEncoding(proj_dims=64)
 
+        # Predict size
         c_hidden_size = hidden_size + 64
+        self.size_layer_x = AutoregressiveDMLL._mlp(
+            c_hidden_size, n_mixtures[3]*3
+        )
+        self.size_layer_y = AutoregressiveDMLL._mlp(
+            c_hidden_size, n_mixtures[4]*3
+        )
+        self.size_layer_z = AutoregressiveDMLL._mlp(
+            c_hidden_size, n_mixtures[5]*3
+        )
+
+        # Predict location
+        c_hidden_size = c_hidden_size + 64*3
         self.centroid_layer_x = AutoregressiveDMLL._mlp(
             c_hidden_size, n_mixtures[0]*3
         )
@@ -84,19 +99,11 @@ class AutoregressiveDMLL(Hidden2Output):
         self.centroid_layer_z = AutoregressiveDMLL._mlp(
             c_hidden_size, n_mixtures[2]*3
         )
+
+        # predict angle
         c_hidden_size = c_hidden_size + 64*3
         self.angle_layer = AutoregressiveDMLL._mlp(
             c_hidden_size, n_mixtures[6]*3
-        )
-        c_hidden_size = c_hidden_size + 64
-        self.size_layer_x = AutoregressiveDMLL._mlp(
-            c_hidden_size, n_mixtures[3]*3
-        )
-        self.size_layer_y = AutoregressiveDMLL._mlp(
-            c_hidden_size, n_mixtures[4]*3
-        )
-        self.size_layer_z = AutoregressiveDMLL._mlp(
-            c_hidden_size, n_mixtures[5]*3
         )
 
         self.bbox_output = bbox_output
@@ -272,36 +279,51 @@ class AutoregressiveDMLL(Hidden2Output):
                 sample_params
             )
 
-        class_labels = target_properties[0]
-        translations = target_properties[1]
-        angles = target_properties[3]
+        gt_class_labels = target_properties[0]
+        gt_translations = target_properties[1]
+        gt_sizes = target_properties[2]
+        gt_angles = target_properties[3]
 
-        c = self.fc_class_labels(class_labels)
+        gt_class_encoding = self.fc_class_labels(gt_class_labels)
 
-        tx = self.pe_trans_x(translations[:, :, 0:1])
-        ty = self.pe_trans_y(translations[:, :, 1:2])
-        tz = self.pe_trans_z(translations[:, :, 2:3])
+        gt_sizes_encoding_x = self.pe_sizes_x(gt_sizes[:, :, 0:1])
+        gt_sizes_encoding_y = self.pe_sizes_y(gt_sizes[:, :, 1:2])
+        gt_sizes_encoding_z = self.pe_sizes_z(gt_sizes[:, :, 2:3])
 
-        a = self.pe_angle_z(angles)
-        class_labels = self.class_layer(x)
+        gt_trans_encoding_x = self.pe_trans_x(gt_translations[:, :, 0:1])
+        gt_trans_encoding_y = self.pe_trans_y(gt_translations[:, :, 1:2])
+        gt_trans_encoding_z = self.pe_trans_z(gt_translations[:, :, 2:3])
 
-        cf = torch.cat([x, c], dim=-1)
-        # Using the true class label we now want to predict the translations
-        translations = (
-            self.centroid_layer_x(cf),
-            self.centroid_layer_y(cf),
-            self.centroid_layer_z(cf)
-        )
-        tf = torch.cat([cf, tx, ty, tz], dim=-1)
-        angles = self.angle_layer(tf)
-        sf = torch.cat([tf, a], dim=-1)
-        sizes = (
-            self.size_layer_x(sf),
-            self.size_layer_y(sf),
-            self.size_layer_z(sf)
+        # Predict class
+        class_pred = self.class_layer(x)
+
+        # Predict size from gt_class
+        sizes_input = torch.cat([x, gt_class_encoding], dim=-1)
+        sizes_pred = (
+            self.size_layer_x(sizes_input),
+            self.size_layer_y(sizes_input),
+            self.size_layer_z(sizes_input),
         )
 
-        return self.bbox_output(sizes, translations, angles, class_labels)
+        # Predict translation from gt_class, gt_sizes 
+        trans_input = torch.cat(
+            [sizes_input, gt_sizes_encoding_x, gt_sizes_encoding_y, gt_sizes_encoding_z],
+            dim=-1
+        )
+        trans_pred = (
+            self.centroid_layer_x(trans_input),
+            self.centroid_layer_y(trans_input),
+            self.centroid_layer_z(trans_input)
+        )
+
+        # Predict angle from gt_classes, gt_sizes, gt_translations
+        angles_input = torch.cat(
+            [trans_input, gt_trans_encoding_x, gt_trans_encoding_y, gt_trans_encoding_z],
+            dim=-1
+        )
+        angles_pred = self.angle_layer(angles_input)
+
+        return self.bbox_output(sizes_pred, trans_pred, angles_pred, class_pred)
 
 
 def get_bbox_output(bbox_type):
