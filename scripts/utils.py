@@ -135,7 +135,11 @@ def get_textured_objects_in_scene(scene, ignore_lamps=False):
             pdb.set_trace()
 
         # Load the furniture and scale it as it is given in the dataset
-        raw_mesh = TexturedMesh.from_file(model_path)
+        try:
+            raw_mesh = TexturedMesh.from_file(model_path)
+        except:
+            raw_mesh = Mesh.from_file(model_path)
+
         raw_mesh.scale(furniture.scale)
 
         # Compute the centroid of the vertices in order to match the
