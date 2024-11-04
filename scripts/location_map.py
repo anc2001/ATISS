@@ -248,9 +248,7 @@ def main(argv):
                 our_rotation, min_bound_rotation, max_bound_rotation
             )
 
-            category = THREED_FRONT_BEDROOM_FURNITURE[
-                object_info["model_info"]["category"]
-            ]
+            category = object_info["category"]
             box = {
                 "class_labels": torch.from_numpy(classes == category)
                 .float()
@@ -270,9 +268,7 @@ def main(argv):
                 boxes[k] = torch.cat([boxes[k], box[k]], dim=1)
 
         # Extract the location params before end symbol
-        query_category = THREED_FRONT_BEDROOM_FURNITURE[
-            subscene_info["query_info"]["model_info"]["category"]
-        ]
+        query_category = subscene_info["query_info"]["category"]
         query_sizes = subscene_info["query_info"]["size"]
         query_sizes = dataset.scale(
             query_sizes, min_bound_size, max_bound_size
