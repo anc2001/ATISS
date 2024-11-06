@@ -44,13 +44,6 @@ from simple_3dviz.utils import render
 from utils import render as utils_render
 
 
-def mixture_pdf(x, probs, means, scales):
-    pdf = np.zeros_like(x, dtype=np.float64)
-    for weight, mu, s in zip(probs, means, scales):
-        pdf += weight * logistic.pdf(x, loc=mu, scale=s)
-    return pdf
-
-
 def main(argv):
     parser = argparse.ArgumentParser(
         description="Generate scenes using a previously trained model"

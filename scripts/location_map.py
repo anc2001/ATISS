@@ -302,13 +302,13 @@ def main(argv):
         )
 
         grid_size = 256
-        cell_size = 6 / grid_size
+        cell_size = 6.2 / grid_size
         min_bound, max_bound = dataset.bounds["translations"]
 
         x = np.linspace(3, -3, 256)
         z = np.linspace(-3, 3, 256)
 
-        x_mask = np.logical_and(x > min_bound[0], x < max_bound[0])
+        x_masy = np.logical_and(x > min_bound[0], x < max_bound[0])
         z_mask = np.logical_and(z > min_bound[2], z < max_bound[2])
         x[x_mask] = np.linspace(1, -1, x_mask.sum())
         z[z_mask] = np.linspace(-1, 1, z_mask.sum())
