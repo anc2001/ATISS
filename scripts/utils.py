@@ -139,6 +139,7 @@ def get_textured_objects_in_scene(scene, ignore_lamps=False):
             raw_mesh = TexturedMesh.from_file(model_path)
         except:
             raw_mesh = Mesh.from_file(model_path)
+            raw_mesh.colors = (0.8, 0.8, 0.8, 1.0)
 
         raw_mesh.scale(furniture.scale)
 

@@ -11,6 +11,7 @@ from PIL import Image
 import trimesh
 
 from simple_3dviz.renderables.textured_mesh import Material, TexturedMesh
+from simple_3dviz import Mesh
 
 
 def get_textured_objects(bbox_params_t, objects_dataset, classes):
@@ -26,7 +27,12 @@ def get_textured_objects(bbox_params_t, objects_dataset, classes):
         )
 
         # Load the furniture and scale it as it is given in the dataset
-        raw_mesh = TexturedMesh.from_file(furniture.raw_model_path)
+        try:
+            raw_mesh = TexturedMesh.from_file(furniture.raw_model_path)
+        except:
+            raw_mesh = Mesh.from_file(furniture.raw_model_path)
+            raw_mesh.colors = (0.8, 0.8, 0.8, 1.0)
+
         raw_mesh.scale(furniture.scale)
 
         # Compute the centroid of the vertices in order to match the

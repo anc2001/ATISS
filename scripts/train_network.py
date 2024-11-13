@@ -138,17 +138,20 @@ def main(argv):
         os.makedirs(args.output_directory)
 
     # Create an experiment directory using the experiment_tag
-    if args.experiment_tag is None:
-        experiment_tag = id_generator(9)
-    else:
-        experiment_tag = args.experiment_tag
+#    if args.experiment_tag is None:
+#        experiment_tag = id_generator(9)
+#    else:
+#        experiment_tag = args.experiment_tag
+#
+#    experiment_directory = os.path.join(
+#        args.output_directory,
+#        experiment_tag
+#    )
+#    if not os.path.exists(experiment_directory):
+#        os.makedirs(experiment_directory)
 
-    experiment_directory = os.path.join(
-        args.output_directory,
-        experiment_tag
-    )
-    if not os.path.exists(experiment_directory):
-        os.makedirs(experiment_directory)
+    experiment_directory = args.output_directory
+    experiment_tag = "asdfa"
 
     # Save the parameters of this run to a file
     save_experiment_params(args, experiment_tag, experiment_directory)

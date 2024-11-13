@@ -17,6 +17,7 @@ from pathlib import Path
 import shutil
 from PIL import Image
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 
 import numpy as np
 import torch
@@ -41,8 +42,13 @@ from simple_3dviz.behaviours.trajectory import Circle
 from simple_3dviz.behaviours.io import SaveFrames, SaveGif
 from simple_3dviz.utils import render
 
-from utils import render as utils_render
+from utils import render as utils_render, floor_plan_renderable
 
+def snap_angle(angle):
+    bin_width = (2 * np.pi) / 4
+    angle = 2 * np.pi + angle if angle < 0 else angle
+    angle_idx = int(round(angle / bin_width)) % 4
+    return angle_idx * bin_width 
 
 def main(argv):
     parser = argparse.ArgumentParser(
@@ -105,7 +111,7 @@ def main(argv):
 
     config = load_config(args.config_file)
 
-    _ , dataset = get_dataset_raw_and_encoded(
+    raw_dataset, dataset = get_dataset_raw_and_encoded(
         config["data"],
         filter_fn=filter_function(
             config["data"], split=config["training"].get("splits", ["train", "val"])
@@ -155,6 +161,7 @@ def main(argv):
             output_path = output_directory / batch_name / subscene_folder.name
             output_paths.append(output_path)
 
+    scene_id_to_room = {str(room.scene_id) : room for room in raw_dataset}
     for subscene_info, info_json, output_path in \
             tqdm(
                     zip(subscene_info_jsons, info_jsons, output_paths), 
@@ -166,12 +173,30 @@ def main(argv):
         vertices = np.array(subscene_info['vertices'])
         faces = np.array(subscene_info['faces'])
 
+        special_cases = []
+
+        # library
+        # special_cases = ['71098', '62499', '66674', '70803', '2931', '61060', '61592', '63804', '59720', '56384', '59439', '60574', '60568', '64100', '57957', '64770']
+
+        # diningroom
+        # special_cases = ['54593', '1422719', '1643180', '50185']
+        if output_path.stem in special_cases:
+            min_bound = np.amin(vertices, axis = 0)
+            max_bound = np.amax(vertices, axis = 0)
+            vertices = np.array([
+                [min_bound[0], 0, min_bound[2]],
+                [min_bound[0], 0, max_bound[2]],
+                [max_bound[0], 0, max_bound[2]],
+                [max_bound[0], 0, min_bound[2]],
+            ])
+            faces = np.array([[0, 1, 2], [0, 2, 3]])
+
         # Apply correction to align with our rendering
         rot_180_z = Rotation.from_rotvec([0, 0, np.pi])
         vertices = rot_180_z.apply(vertices)
         faces = faces[:, ::-1]
 
-        floor_plan = Mesh.from_faces(vertices, faces, (0.7, 0.7, 0.7, 1.0))
+        floor_plan = Mesh.from_faces(vertices, faces, (0.5, 0.5, 0.5, 1.0))
         floor_plan = [floor_plan]
 
         empty_box = {
@@ -257,17 +282,18 @@ def main(argv):
             scene=scene,
         )
 
-        # Get the query object from the original image and just crop out the boox area
-        original_scene_image = Image.open(path_to_image.with_suffix(".png"))
-        original_scene_image = np.array(original_scene_image)
         grid_size = args.window_size[0]
         assert grid_size == args.window_size[1]
         cell_size = (2 * room_side) / grid_size
         corner_pos = [- room_side, 0, - room_side]
+
+        # Get the query object from the original image and just crop out the boox area
+        original_scene_image = Image.open(path_to_image.with_suffix(".png"))
+        original_scene_image = np.array(original_scene_image)
+
         min_bound, max_bound = query_renderable.bbox
         min_bound_grid = (min_bound - corner_pos) / cell_size
         max_bound_grid = (max_bound - corner_pos) / cell_size
-
         x_min_grid = 255 - int(max_bound_grid[0])
         x_max_grid = 255 - int(min_bound_grid[0])
         z_min_grid = int(min_bound_grid[2])
@@ -276,10 +302,66 @@ def main(argv):
             x_min_grid : x_max_grid, 
             z_min_grid : z_max_grid
         ]
-        Image.fromarray(query_image).save(output_path / "query_object.png")
+        query_image = Image.fromarray(query_image)
+        query_rotation = snap_angle(subscene_info["query_object"]["rotation"][0])
+        query_rotation = (180 / np.pi) * query_rotation
+        query_rotation = 360 - query_rotation
+        query_image = query_image.rotate(query_rotation, expand=True)
+        query_image.save(output_path / "query_object.png")
 
         with open(output_path / 'info.json', 'w') as f:
             json.dump(info_json, f, indent=4)
+
+        # Also create a bar at the top that labels what all the objects in the scene are
+        scene_image = Image.open(output_path / "scene.png")
+        scene_image = np.array(scene_image)
+
+        top_bar_images = []
+        for scene_object in renderables[:-1]:
+            min_bound, max_bound = scene_object.bbox
+            min_bound_grid = (min_bound - corner_pos) / cell_size
+            max_bound_grid = (max_bound - corner_pos) / cell_size
+
+            x_min_grid = 255 - int(max_bound_grid[0])
+            x_max_grid = 255 - int(min_bound_grid[0])
+            z_min_grid = int(min_bound_grid[2])
+            z_max_grid = int(max_bound_grid[2])
+
+            # Give the bounds some padding
+            x_min_grid = max(0, x_min_grid - 25)
+            x_max_grid = min(255, x_max_grid + 25)
+            z_min_grid = max(0, z_min_grid - 25)
+            z_max_grid = min(255, z_max_grid + 25)
+
+            scene_object_image = scene_image[
+                x_min_grid : x_max_grid, 
+                z_min_grid : z_max_grid
+            ]
+            scene_object_image = Image.fromarray(np.uint8(scene_object_image))
+            top_bar_images.append(scene_object_image)
+
+        num_scene_objects = len(renderables[:-1])
+        if num_scene_objects != 0:
+            fig, axes = plt.subplots(
+                1, num_scene_objects, squeeze=True, figsize=(num_scene_objects * 3, 3)
+            )
+            for i in range(num_scene_objects):
+                object_category = subscene_info["objects"][i]["category"]
+                if num_scene_objects == 1:
+                    ax = axes
+                else:
+                    ax = axes[i]
+
+                ax.set_title(object_category)
+                ax.imshow(top_bar_images[i])
+                ax.set_xticks([])
+                ax.set_yticks([])
+
+            fig.savefig(output_path / "key.png")
+            plt.close(fig)
+        else:
+            key_img = np.ones((256, 64, 3))
+            Image.fromarray(np.uint8(key_img * 255)).save(output_path / "key.png")
 
 
 if __name__ == "__main__":
