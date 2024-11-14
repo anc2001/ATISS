@@ -73,6 +73,7 @@ def main(argv):
         type=Path,
         help="Path to annotated info",
     )
+    parser.add_argument("--debug", action="store_true")
     parser.add_argument(
         "--background",
         type=lambda x: list(map(float, x.split(","))),
@@ -165,6 +166,121 @@ def main(argv):
                 subscene_info = json.load(f)
             subscene_infos[global_idx] = subscene_info
 
+    print("preprocessing")
+    subscene_atiss_info = dict()
+    for global_idx, subscene_info in tqdm(subscene_infos.items()):
+        # Get a floor plan
+        vertices = np.array(subscene_info['vertices'])
+        faces = np.array(subscene_info['faces'])
+
+        # Apply correction to align with our rendering
+        rot_180_z = Rotation.from_rotvec([0, 0, np.pi])
+        vertices = rot_180_z.apply(vertices)
+        faces = faces[:, ::-1]
+
+        floor_plan = Mesh.from_faces(vertices, faces, (0.5, 0.5, 0.5, 1.0))
+        floor_plan = [floor_plan]
+
+        mask_floor_plan = Mesh.from_faces(vertices, faces, (1.0, 1.0, 1.0, 1.0))
+
+        # Room mask rendered with (0, 0, -1) up camera position (0, 4, 0), room side 3.1
+        mask_scene = Scene(size=(256, 256), background=(0, 0, 0, 1))
+        mask_scene.up_vector = (0, 0, -1)
+        mask_scene.camera_target = (0, 0, 0)
+        mask_scene.camera_position = (0, 4, 0)
+        mask_scene.light = (0, 4, 0)
+        room_side = 3.1
+        mask_scene.camera_matrix = Matrix44.orthogonal_projection(
+            left=-room_side,
+            right=room_side,
+            bottom=room_side,
+            top=-room_side,
+            near=0.1,
+            far=6,
+        )
+
+        room_mask = utils_render(
+            mask_scene,
+            [mask_floor_plan],
+            (1.0, 1.0, 1.0),
+            "flat",
+        )
+        room_mask = Image.fromarray(room_mask)
+        room_mask = room_mask.resize(
+            tuple(map(int, config["data"]["room_layout_size"].split(","))),
+            resample=Image.BILINEAR,
+        )
+        room_mask = np.asarray(room_mask).astype(np.float32) / np.float32(255)
+
+        room_mask = torch.from_numpy(
+            np.transpose(room_mask[None, :, :, 0:1], (0, 3, 1, 2))
+        ).float()
+
+        room_mask = room_mask.to(device)
+        boxes = {
+            'class_labels' : torch.zeros((1, 1, len(classes))).to(device),
+            'translations': torch.zeros((1, 1, 3)).to(device),
+            'sizes' : torch.zeros((1, 1, 3)).to(device),
+            'angles' : torch.zeros((1, 1, 1)).to(device),
+        }
+
+        min_bound_translation, max_bound_translation = dataset.bounds["translations"]
+        min_bound_size, max_bound_size = dataset.bounds["sizes"]
+        min_bound_rotation, max_bound_rotation = dataset.bounds["angles"]
+        for object_info in subscene_info["objects"]:
+            our_translation = np.array(
+                object_info["translation"]
+            )
+            our_translation = rot_180_z.apply(our_translation)
+            our_size = np.array(object_info["size"])
+            our_translation[1] = our_size[1]
+
+            normalized_translation = dataset.scale(
+                our_translation, min_bound_translation, max_bound_translation
+            )
+            normalized_size = dataset.scale(
+                our_size, min_bound_size, max_bound_size
+            )
+            our_rotation = np.array(object_info["rotation"])
+            if our_rotation > max_bound_rotation:
+                our_rotation -= 2 * np.pi
+
+            normalized_rotation = dataset.scale(
+                our_rotation, min_bound_rotation, max_bound_rotation
+            )
+            assert object_info["category"] in classes
+
+            box = {
+                "class_labels": torch.from_numpy(classes == object_info["category"])
+                .float()
+                .view(1, 1, len(classes))
+                .to(device),
+                "translations": torch.from_numpy(normalized_translation)
+                .float()
+                .view(1, 1, 3)
+                .to(device),
+                "sizes": torch.from_numpy(normalized_size).float().view(1, 1, 3).to(device),
+                "angles": torch.from_numpy(normalized_rotation)
+                .float()
+                .view(1, 1, 1)
+                .to(device),
+            }
+            for k in box.keys():
+                boxes[k] = torch.cat([boxes[k], box[k]], dim=1)
+
+        # Extract the location params before end symbol
+        query_category = subscene_info["query_object"]["category"]
+        assert query_category in classes
+        query_class_label = torch.from_numpy(classes == query_category)
+        query_class_label = query_class_label.float().view(1, 1, len(classes)).to(device)
+
+        subscene_atiss_info[global_idx] = {
+            "room_mask" : room_mask,
+            "boxes" : boxes,
+            "floor_plan" : floor_plan,
+            "query_class_label" : query_class_label,
+        }
+
     for weight_file in Path(args.run_directory).glob("model_*"):
         network, _, _ = build_network(
             dataset.feature_size, dataset.n_classes, config, weight_file, device=device
@@ -181,107 +297,18 @@ def main(argv):
         output_directory.mkdir(parents=True) 
 
         print("epoch", epoch)
-        for global_idx, subscene_info in tqdm(subscene_infos.items()):
+        for global_idx in tqdm(subscene_infos.keys()):
             save_dir = output_directory / str(global_idx)
             save_dir.mkdir()
 
-            # Get a floor plan
-            vertices = np.array(subscene_info['vertices'])
-            faces = np.array(subscene_info['faces'])
-
-            # Apply correction to align with our rendering
-            rot_180_z = Rotation.from_rotvec([0, 0, np.pi])
-            vertices = rot_180_z.apply(vertices)
-            faces = faces[:, ::-1]
-
-            floor_plan = Mesh.from_faces(vertices, faces, (0.5, 0.5, 0.5, 1.0))
-            floor_plan = [floor_plan]
-
-            mask_floor_plan = Mesh.from_faces(vertices, faces, (1.0, 1.0, 1.0, 1.0))
-
-            # Room mask rendered with (0, 0, -1) up camera position (0, 4, 0), room side 3.1
-            mask_scene = Scene(size=(256, 256), background=(0, 0, 0, 1))
-            mask_scene.up_vector = (0, 0, -1)
-            mask_scene.camera_target = (0, 0, 0)
-            mask_scene.camera_position = (0, 4, 0)
-            mask_scene.light = (0, 4, 0)
-            room_side = 3.1
-            mask_scene.camera_matrix = Matrix44.orthogonal_projection(
-                left=-room_side,
-                right=room_side,
-                bottom=room_side,
-                top=-room_side,
-                near=0.1,
-                far=6,
-            )
-
-            room_mask = utils_render(
-                mask_scene,
-                [mask_floor_plan],
-                (1.0, 1.0, 1.0),
-                "flat",
-                save_dir / "room_mask.png",
-            )
-            room_mask = Image.fromarray(room_mask)
-            room_mask = room_mask.resize(
-                tuple(map(int, config["data"]["room_layout_size"].split(","))),
-                resample=Image.BILINEAR,
-            )
-            room_mask = np.asarray(room_mask).astype(np.float32) / np.float32(255)
-
-            room_mask = torch.from_numpy(
-                np.transpose(room_mask[None, :, :, 0:1], (0, 3, 1, 2))
-            ).float()
-
-            room_mask = room_mask.to(device)
-            boxes = network.start_symbol(device)
-
-            min_bound_translation, max_bound_translation = dataset.bounds["translations"]
-            min_bound_size, max_bound_size = dataset.bounds["sizes"]
-            min_bound_rotation, max_bound_rotation = dataset.bounds["angles"]
-            for object_info in subscene_info["objects"]:
-                our_translation = np.array(
-                    object_info["translation"]
-                )
-                our_translation = rot_180_z.apply(our_translation)
-                our_size = np.array(object_info["size"])
-                our_translation[1] = our_size[1]
-
-                normalized_translation = dataset.scale(
-                    our_translation, min_bound_translation, max_bound_translation
-                )
-                normalized_size = dataset.scale(
-                    our_size, min_bound_size, max_bound_size
-                )
-                our_rotation = np.array(object_info["rotation"])
-                normalized_rotation = dataset.scale(
-                    our_rotation, min_bound_rotation, max_bound_rotation
-                )
-                assert object_info["category"] in classes
-
-                box = {
-                    "class_labels": torch.from_numpy(classes == object_info["category"])
-                    .float()
-                    .view(1, 1, len(classes))
-                    .to(device),
-                    "translations": torch.from_numpy(normalized_translation)
-                    .float()
-                    .view(1, 1, 3)
-                    .to(device),
-                    "sizes": torch.from_numpy(normalized_size).float().view(1, 1, 3).to(device),
-                    "angles": torch.from_numpy(normalized_rotation)
-                    .float()
-                    .view(1, 1, 1)
-                    .to(device),
-                }
-                for k in box.keys():
-                    boxes[k] = torch.cat([boxes[k], box[k]], dim=1)
-
-            # Extract the location params before end symbol
-            query_category = subscene_info["query_object"]["category"]
-            assert query_category in classes
-            query_class_label = torch.from_numpy(classes == query_category)
-            query_class_label = query_class_label.float().view(1, 1, len(classes)).to(device)
+            room_info = subscene_atiss_info[global_idx]
+            room_mask = room_info["room_mask"]
+            boxes_original = room_info["boxes"]
+            boxes = dict()
+            for k, v in boxes_original.items():
+                boxes[k] = torch.clone(v)
+            floor_plan = room_info["floor_plan"]
+            query_class_label = room_info["query_class_label"]
 
             with torch.no_grad():
                 dmll_params = network.distribution_translations(
@@ -324,58 +351,60 @@ def main(argv):
 
             location_pdf = pdf / pdf.max()
 
-            box = network.end_symbol(device) 
-            for k in box.keys():
-                boxes[k] = torch.cat([boxes[k], box[k]], dim=1)
-
-            bbox_params = {
-                "class_labels": boxes["class_labels"].to("cpu"),
-                "translations": boxes["translations"].to("cpu"),
-                "sizes": boxes["sizes"].to("cpu"),
-                "angles": boxes["angles"].to("cpu"),
-            }
-
-            boxes_post = dataset.post_process(bbox_params)
-            bbox_params_t = (
-                torch.cat(
-                    [
-                        boxes_post["class_labels"],
-                        boxes_post["translations"],
-                        boxes_post["sizes"],
-                        boxes_post["angles"],
-                    ],
-                    dim=-1,
-                )
-                .cpu()
-                .numpy()
-            )
-
-            renderables, _ = get_textured_objects(bbox_params_t, objects_dataset, classes)
-            renderables += floor_plan
-
-            # Do the rendering
-            path_to_image = save_dir / f"scene"
-            behaviours = [LightToCamera(), SaveFrames(str(path_to_image) + ".png", 1)]
-
-            render(
-                renderables,
-                behaviours=behaviours,
-                size=args.window_size,
-                camera_position=args.camera_position,
-                camera_target=args.camera_target,
-                up_vector=args.up_vector,
-                background=args.background,
-                n_frames=args.n_frames,
-                scene=scene,
-            )
-
-            mask = location_pdf > 0.1
-            path_to_image = path_to_image.with_suffix(".png")
-            scene_image = np.array(Image.open(path_to_image))
-            scene_image[mask] = [255, 0, 0, 255]
-            Image.fromarray(scene_image).save(path_to_image)
-
             np.savez(save_dir / 'location_pdf', location_pdf)
+
+            if args.debug:
+                box = network.end_symbol(device) 
+                for k in box.keys():
+                    boxes[k] = torch.cat([boxes[k], box[k]], dim=1)
+
+                bbox_params = {
+                    "class_labels": boxes["class_labels"].to("cpu"),
+                    "translations": boxes["translations"].to("cpu"),
+                    "sizes": boxes["sizes"].to("cpu"),
+                    "angles": boxes["angles"].to("cpu"),
+                }
+
+                boxes_post = dataset.post_process(bbox_params)
+                bbox_params_t = (
+                    torch.cat(
+                        [
+                            boxes_post["class_labels"],
+                            boxes_post["translations"],
+                            boxes_post["sizes"],
+                            boxes_post["angles"],
+                        ],
+                        dim=-1,
+                    )
+                    .cpu()
+                    .numpy()
+                )
+
+                renderables, _ = get_textured_objects(bbox_params_t, objects_dataset, classes)
+                renderables += floor_plan
+
+                # Do the rendering
+                path_to_image = save_dir / f"scene"
+                behaviours = [LightToCamera(), SaveFrames(str(path_to_image) + ".png", 1)]
+
+                render(
+                    renderables,
+                    behaviours=behaviours,
+                    size=args.window_size,
+                    camera_position=args.camera_position,
+                    camera_target=args.camera_target,
+                    up_vector=args.up_vector,
+                    background=args.background,
+                    n_frames=args.n_frames,
+                    scene=scene,
+                )
+
+                mask = location_pdf > 0.1
+                path_to_image = path_to_image.with_suffix(".png")
+                scene_image = np.array(Image.open(path_to_image))
+                scene_image[mask] = [255, 0, 0, 255]
+                Image.fromarray(scene_image).save(path_to_image)
+
 
 if __name__ == "__main__":
     main(sys.argv[1:])
