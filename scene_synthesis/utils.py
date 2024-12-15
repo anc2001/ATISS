@@ -14,24 +14,31 @@ from simple_3dviz.renderables.textured_mesh import Material, TexturedMesh
 from simple_3dviz import Mesh
 
 
-def get_textured_objects(bbox_params_t, objects_dataset, classes):
+def get_textured_objects(bbox_params_t, objects_dataset, classes, cmap=None):
     # For each one of the boxes replace them with an object
     renderables = []
     lines_renderables = []
     trimesh_meshes = []
     for j in range(1, bbox_params_t.shape[1]-1):
         query_size = bbox_params_t[0, j, -4:-1]
-        query_label = classes[bbox_params_t[0, j, :-7].argmax(-1)]
+        query_label_idx = bbox_params_t[0, j, :-7].argmax(-1)
+        query_label = classes[query_label_idx]
         furniture = objects_dataset.get_closest_furniture_to_box(
             query_label, query_size
         )
 
         # Load the furniture and scale it as it is given in the dataset
-        try:
-            raw_mesh = TexturedMesh.from_file(furniture.raw_model_path)
-        except:
-            raw_mesh = Mesh.from_file(furniture.raw_model_path)
-            raw_mesh.colors = (0.8, 0.8, 0.8, 1.0)
+        if cmap is None:
+            try:
+                raw_mesh = TexturedMesh.from_file(furniture.raw_model_path)
+            except:
+                raw_mesh = Mesh.from_file(furniture.raw_model_path)
+                raw_mesh.colors = (0.8, 0.8, 0.8, 1.0)
+        else:
+            raw_mesh = Mesh.from_file(
+                furniture.raw_model_path, 
+                color = cmap(query_label_idx)
+            )
 
         raw_mesh.scale(furniture.scale)
 
