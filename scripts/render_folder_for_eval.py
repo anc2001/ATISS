@@ -47,7 +47,7 @@ from utils import render as utils_render
 
 def main(argv):
     parser = argparse.ArgumentParser(
-        description="Generate scenes using a previously trained model"
+        description="Render scenes in a folder specified by json"
     )
     parser.add_argument(
         "config_file",
