@@ -159,7 +159,9 @@ def main(argv):
         'sizes' : torch.zeros((1, 1, 3)),
         'angles' : torch.zeros((1, 1, 1)),
     }
-    boxes = empty_box
+    boxes = dict() 
+    for k, v in empty_box.items():
+        boxes[k] = torch.clone(v)
     for object_info in subscene_info["objects"]:
         translation = np.array(object_info["translation"])
         translation = rot_180_z.apply(translation)
@@ -182,7 +184,7 @@ def main(argv):
             boxes[k] = torch.cat([boxes[k], box[k]], dim=1)
 
     for k in empty_box.keys():
-        boxes[k] = torch.cat([boxes[k], empty_box[k]], dim=1)
+        boxes[k] = torch.cat([boxes[k], torch.clone(empty_box[k])], dim=1)
 
     bbox_params_t = (
         torch.cat(
