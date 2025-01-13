@@ -1,10 +1,10 @@
-# 
+#
 # Copyright (C) 2021 NVIDIA Corporation.  All rights reserved.
 # Licensed under the NVIDIA Source Code License.
 # See LICENSE at https://github.com/nv-tlabs/ATISS.
 # Authors: Despoina Paschalidou, Amlan Kar, Maria Shugrina, Karsten Kreis,
 #          Andreas Geiger, Sanja Fidler
-# 
+#
 
 import os
 
@@ -74,11 +74,7 @@ def floor_plan_renderable(room, color=(1.0, 1.0, 1.0, 1.0)):
     return Mesh.from_faces(vertices, faces, color)
 
 
-def floor_plan_from_scene(
-    scene,
-    path_to_floor_plan_textures,
-    without_room_mask=False
-):
+def floor_plan_from_scene(scene, path_to_floor_plan_textures, without_room_mask=False):
     if not without_room_mask:
         room_mask = torch.from_numpy(
             np.transpose(scene.room_mask[None, :, :, 0:1], (0, 3, 1, 2))
@@ -91,7 +87,7 @@ def floor_plan_from_scene(
         [
             os.path.join(path_to_floor_plan_textures, fi)
             for fi in os.listdir(path_to_floor_plan_textures)
-        ]
+        ],
     )
     return [floor], [tr_floor], room_mask
 
@@ -110,17 +106,13 @@ def get_floor_plan(scene, floor_textures):
         vertices=vertices,
         uv=uv,
         faces=faces,
-        material=Material.with_texture_image(texture)
+        material=Material.with_texture_image(texture),
     )
 
-    tr_floor = trimesh.Trimesh(
-        np.copy(vertices), np.copy(faces), process=False
-    )
+    tr_floor = trimesh.Trimesh(np.copy(vertices), np.copy(faces), process=False)
     tr_floor.visual = trimesh.visual.TextureVisuals(
         uv=np.copy(uv),
-        material=trimesh.visual.material.SimpleMaterial(
-            image=Image.open(texture)
-        )
+        material=trimesh.visual.material.SimpleMaterial(image=Image.open(texture)),
     )
 
     return floor, tr_floor
@@ -132,6 +124,7 @@ def get_textured_objects_in_scene(scene, ignore_lamps=False):
         model_path = furniture.raw_model_path
         if not model_path.endswith("obj"):
             import pdb
+
             pdb.set_trace()
 
         # Load the furniture and scale it as it is given in the dataset
@@ -146,7 +139,7 @@ def get_textured_objects_in_scene(scene, ignore_lamps=False):
         # Compute the centroid of the vertices in order to match the
         # bbox (because the prediction only considers bboxes)
         bbox = raw_mesh.bbox
-        centroid = (bbox[0] + bbox[1])/2
+        centroid = (bbox[0] + bbox[1]) / 2
 
         # Extract the predicted affine transformation to position the
         # mesh
@@ -157,7 +150,7 @@ def get_textured_objects_in_scene(scene, ignore_lamps=False):
         R[0, 2] = -np.sin(theta)
         R[2, 0] = np.sin(theta)
         R[2, 2] = np.cos(theta)
-        R[1, 1] = 1.
+        R[1, 1] = 1.0
 
         # Apply the transformations in order to correctly position the mesh
         raw_mesh.affine_transform(t=-centroid)
@@ -171,9 +164,9 @@ def render(scene, renderables, color, mode, frame_path=None):
         try:
             color[0][0]
         except TypeError:
-            color = [color]*len(renderables)
+            color = [color] * len(renderables)
     else:
-        color = [None]*len(renderables)
+        color = [None] * len(renderables)
 
     scene.clear()
     for r, c in zip(renderables, color):
@@ -196,27 +189,23 @@ def scene_from_args(args):
     scene.camera_position = args.camera_position
     scene.light = args.camera_position
     scene.camera_matrix = Matrix44.orthogonal_projection(
-        left=-args.room_side, right=args.room_side,
-        bottom=args.room_side, top=-args.room_side,
-        near=0.1, far=6
+        left=-args.room_side,
+        right=args.room_side,
+        bottom=args.room_side,
+        top=-args.room_side,
+        near=0.1,
+        far=6,
     )
     return scene
 
 
-def export_scene(output_directory, trimesh_meshes, names=None):
+def export_scene(output_directory, trimesh_meshes, names=None, color_by_idx=False):
     if names is None:
-        names = [
-            "object_{:03d}.obj".format(i) for i in range(len(trimesh_meshes))
-        ]
-    mtl_names = [
-        "material_{:03d}".format(i) for i in range(len(trimesh_meshes))
-    ]
+        names = ["object_{:03d}.obj".format(i) for i in range(len(trimesh_meshes))]
 
+    mtl_names = ["material_{:03d}".format(i) for i in range(len(trimesh_meshes))]
     for i, m in enumerate(trimesh_meshes):
-        obj_out, tex_out = trimesh.exchange.obj.export_obj(
-            m,
-            return_texture=True
-        )
+        obj_out, tex_out = trimesh.exchange.obj.export_obj(m, return_texture=True)
 
         with open(os.path.join(output_directory, names[i]), "w") as f:
             f.write(obj_out.replace("material0", mtl_names[i]))
@@ -226,16 +215,14 @@ def export_scene(output_directory, trimesh_meshes, names=None):
             continue
 
         mtl_key = next(k for k in tex_out.keys() if k.endswith(".mtl"))
-        path_to_mtl_file = os.path.join(output_directory, mtl_names[i]+".mtl")
+        path_to_mtl_file = os.path.join(output_directory, mtl_names[i] + ".mtl")
         with open(path_to_mtl_file, "wb") as f:
             f.write(
-                tex_out[mtl_key].replace(
-                    b"material0", mtl_names[i].encode("ascii")
-                )
+                tex_out[mtl_key].replace(b"material0", mtl_names[i].encode("ascii"))
             )
         tex_key = next(k for k in tex_out.keys() if not k.endswith(".mtl"))
         tex_ext = os.path.splitext(tex_key)[1]
-        path_to_tex_file = os.path.join(output_directory, mtl_names[i]+tex_ext)
+        path_to_tex_file = os.path.join(output_directory, mtl_names[i] + tex_ext)
         with open(path_to_tex_file, "wb") as f:
             f.write(tex_out[tex_key])
 
@@ -248,9 +235,7 @@ def print_predicted_labels(dataset, boxes):
 
 
 def poll_specific_class(dataset):
-    label = input(
-        "Select an object class from {}\n".format(dataset.object_types)
-    )
+    label = input("Select an object class from {}\n".format(dataset.object_types))
     if label in dataset.object_types:
         return dataset.object_types.index(label)
     else:
@@ -265,7 +250,7 @@ def make_network_input(current_boxes, indices):
         class_labels=_prepare(current_boxes["class_labels"][indices]),
         translations=_prepare(current_boxes["translations"][indices]),
         sizes=_prepare(current_boxes["sizes"][indices]),
-        angles=_prepare(current_boxes["angles"][indices])
+        angles=_prepare(current_boxes["angles"][indices]),
     )
 
 
@@ -278,25 +263,23 @@ def render_to_folder(
     floor_plan,
     scene,
     bbox_params,
-    add_start_end=False
+    add_start_end=False,
 ):
     boxes = dataset.post_process(bbox_params)
     bbox_params_t = torch.cat(
-        [
-            boxes["class_labels"],
-            boxes["translations"],
-            boxes["sizes"],
-            boxes["angles"]
-        ],
-        dim=-1
+        [boxes["class_labels"], boxes["translations"], boxes["sizes"], boxes["angles"]],
+        dim=-1,
     ).cpu()
 
     if add_start_end:
-        bbox_params_t = torch.cat([
-            torch.zeros(1, 1, bbox_params_t.shape[2]),
-            bbox_params_t,
-            torch.zeros(1, 1, bbox_params_t.shape[2]),
-        ], dim=1)
+        bbox_params_t = torch.cat(
+            [
+                torch.zeros(1, 1, bbox_params_t.shape[2]),
+                bbox_params_t,
+                torch.zeros(1, 1, bbox_params_t.shape[2]),
+            ],
+            dim=1,
+        )
 
     renderables, trimesh_meshes = get_textured_objects(
         bbox_params_t.numpy(), objects_dataset, np.array(dataset.class_labels)
@@ -308,14 +291,8 @@ def render_to_folder(
         os.mkdir(path_to_objs)
     export_scene(path_to_objs, trimesh_meshes)
 
-    path_to_image = os.path.join(
-        args.output_directory,
-        folder + "_render.png"
-    )
-    behaviours = [
-        LightToCamera(),
-        SaveFrames(path_to_image, 1)
-    ]
+    path_to_image = os.path.join(args.output_directory, folder + "_render.png")
+    behaviours = [LightToCamera(), SaveFrames(path_to_image, 1)]
     render_simple_3dviz(
         renderables + floor_plan,
         behaviours=behaviours,
@@ -325,7 +302,7 @@ def render_to_folder(
         up_vector=args.up_vector,
         background=args.background,
         n_frames=args.n_frames,
-        scene=scene
+        scene=scene,
     )
 
 
@@ -339,19 +316,23 @@ def render_scene_from_bbox_params(
     tr_floor,
     scene,
     path_to_image,
-    path_to_objs
+    path_to_objs,
 ):
     boxes = dataset.post_process(bbox_params)
     print_predicted_labels(dataset, boxes)
-    bbox_params_t = torch.cat(
-        [
-            boxes["class_labels"],
-            boxes["translations"],
-            boxes["sizes"],
-            boxes["angles"]
-        ],
-        dim=-1
-    ).cpu().numpy()
+    bbox_params_t = (
+        torch.cat(
+            [
+                boxes["class_labels"],
+                boxes["translations"],
+                boxes["sizes"],
+                boxes["angles"],
+            ],
+            dim=-1,
+        )
+        .cpu()
+        .numpy()
+    )
 
     renderables, trimesh_meshes = get_textured_objects(
         bbox_params_t, objects_dataset, classes
@@ -360,10 +341,7 @@ def render_scene_from_bbox_params(
     trimesh_meshes += tr_floor
 
     # Do the rendering
-    behaviours = [
-        LightToCamera(),
-        SaveFrames(path_to_image+".png", 1)
-    ]
+    behaviours = [LightToCamera(), SaveFrames(path_to_image + ".png", 1)]
     render_simple_3dviz(
         renderables,
         behaviours=behaviours,
@@ -373,7 +351,7 @@ def render_scene_from_bbox_params(
         up_vector=args.up_vector,
         background=args.background,
         n_frames=args.n_frames,
-        scene=scene
+        scene=scene,
     )
     if trimesh_meshes is not None:
         # Create a trimesh scene and export it

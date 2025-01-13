@@ -44,11 +44,13 @@ from simple_3dviz.utils import render
 
 from utils import render as utils_render, floor_plan_renderable
 
+
 def snap_angle(angle):
     bin_width = (2 * np.pi) / 4
     angle = 2 * np.pi + angle if angle < 0 else angle
     angle_idx = int(round(angle / bin_width)) % 4
-    return angle_idx * bin_width 
+    return angle_idx * bin_width
+
 
 def main(argv):
     parser = argparse.ArgumentParser(
@@ -58,10 +60,7 @@ def main(argv):
         "config_file",
         help="Path to the file that contains the experiment configuration",
     )
-    parser.add_argument(
-        "output_directory", 
-        help="Path to the output directory"
-    )
+    parser.add_argument("output_directory", help="Path to the output directory")
     parser.add_argument(
         "path_to_pickled_3d_futute_models", help="Path to the 3D-FUTURE model meshes"
     )
@@ -151,9 +150,9 @@ def main(argv):
     for batch_path in annotated_info_path.iterdir():
         batch_name = batch_path.name
         for subscene_folder in batch_path.iterdir():
-            with open(subscene_folder / "subscene_info.json", 'r') as f:
+            with open(subscene_folder / "subscene_info.json", "r") as f:
                 subscene_info = json.load(f)
-            with open(subscene_folder / "info.json", 'r') as f:
+            with open(subscene_folder / "info.json", "r") as f:
                 info = json.load(f)
             subscene_info_jsons.append(subscene_info)
             info_jsons.append(info)
@@ -161,17 +160,16 @@ def main(argv):
             output_path = output_directory / batch_name / subscene_folder.name
             output_paths.append(output_path)
 
-    scene_id_to_room = {str(room.scene_id) : room for room in raw_dataset}
-    for subscene_info, info_json, output_path in \
-            tqdm(
-                    zip(subscene_info_jsons, info_jsons, output_paths), 
-                    total=len(subscene_info_jsons)
-                ):
+    scene_id_to_room = {str(room.scene_id): room for room in raw_dataset}
+    for subscene_info, info_json, output_path in tqdm(
+        zip(subscene_info_jsons, info_jsons, output_paths),
+        total=len(subscene_info_jsons),
+    ):
         output_path.mkdir(parents=True)
 
         # Get a floor plan
-        vertices = np.array(subscene_info['vertices'])
-        faces = np.array(subscene_info['faces'])
+        vertices = np.array(subscene_info["vertices"])
+        faces = np.array(subscene_info["faces"])
 
         special_cases = []
 
@@ -181,14 +179,16 @@ def main(argv):
         # diningroom
         # special_cases = ['54593', '1422719', '1643180', '50185']
         if output_path.stem in special_cases:
-            min_bound = np.amin(vertices, axis = 0)
-            max_bound = np.amax(vertices, axis = 0)
-            vertices = np.array([
-                [min_bound[0], 0, min_bound[2]],
-                [min_bound[0], 0, max_bound[2]],
-                [max_bound[0], 0, max_bound[2]],
-                [max_bound[0], 0, min_bound[2]],
-            ])
+            min_bound = np.amin(vertices, axis=0)
+            max_bound = np.amax(vertices, axis=0)
+            vertices = np.array(
+                [
+                    [min_bound[0], 0, min_bound[2]],
+                    [min_bound[0], 0, max_bound[2]],
+                    [max_bound[0], 0, max_bound[2]],
+                    [max_bound[0], 0, min_bound[2]],
+                ]
+            )
             faces = np.array([[0, 1, 2], [0, 2, 3]])
 
         # Apply correction to align with our rendering
@@ -200,10 +200,10 @@ def main(argv):
         floor_plan = [floor_plan]
 
         empty_box = {
-            'class_labels' : torch.zeros((1, 1, len(classes))),
-            'translations': torch.zeros((1, 1, 3)),
-            'sizes' : torch.zeros((1, 1, 3)),
-            'angles' : torch.zeros((1, 1, 1)),
+            "class_labels": torch.zeros((1, 1, len(classes))),
+            "translations": torch.zeros((1, 1, 3)),
+            "sizes": torch.zeros((1, 1, 3)),
+            "angles": torch.zeros((1, 1, 1)),
         }
         boxes = dict(empty_box)
         object_info_list = subscene_info["objects"] + [subscene_info["query_object"]]
@@ -217,9 +217,7 @@ def main(argv):
                 "class_labels": torch.from_numpy(classes == object_info["category"])
                 .float()
                 .view(1, 1, len(classes)),
-                "translations": torch.from_numpy(translation)
-                .float()
-                .view(1, 1, 3),
+                "translations": torch.from_numpy(translation).float().view(1, 1, 3),
                 "sizes": torch.from_numpy(size).float().view(1, 1, 3),
                 "angles": torch.from_numpy(np.array(object_info["rotation"]))
                 .float()
@@ -246,7 +244,7 @@ def main(argv):
         )
 
         renderables, _ = get_textured_objects(bbox_params_t, objects_dataset, classes)
-        query_renderable = renderables[-1] 
+        query_renderable = renderables[-1]
         original_scene_renderables = renderables + floor_plan
         scene_renderables = renderables[:-1] + floor_plan
 
@@ -285,7 +283,7 @@ def main(argv):
         grid_size = args.window_size[0]
         assert grid_size == args.window_size[1]
         cell_size = (2 * room_side) / grid_size
-        corner_pos = [- room_side, 0, - room_side]
+        corner_pos = [-room_side, 0, -room_side]
 
         # Get the query object from the original image and just crop out the boox area
         original_scene_image = Image.open(path_to_image.with_suffix(".png"))
@@ -298,10 +296,7 @@ def main(argv):
         x_max_grid = 255 - int(min_bound_grid[0])
         z_min_grid = int(min_bound_grid[2])
         z_max_grid = int(max_bound_grid[2])
-        query_image = original_scene_image[
-            x_min_grid : x_max_grid, 
-            z_min_grid : z_max_grid
-        ]
+        query_image = original_scene_image[x_min_grid:x_max_grid, z_min_grid:z_max_grid]
         query_image = Image.fromarray(query_image)
         query_rotation = snap_angle(subscene_info["query_object"]["rotation"][0])
         query_rotation = (180 / np.pi) * query_rotation
@@ -309,7 +304,7 @@ def main(argv):
         query_image = query_image.rotate(query_rotation, expand=True)
         query_image.save(output_path / "query_object.png")
 
-        with open(output_path / 'info.json', 'w') as f:
+        with open(output_path / "info.json", "w") as f:
             json.dump(info_json, f, indent=4)
 
         # Also create a bar at the top that labels what all the objects in the scene are
@@ -334,8 +329,7 @@ def main(argv):
             z_max_grid = min(255, z_max_grid + 25)
 
             scene_object_image = scene_image[
-                x_min_grid : x_max_grid, 
-                z_min_grid : z_max_grid
+                x_min_grid:x_max_grid, z_min_grid:z_max_grid
             ]
             scene_object_image = Image.fromarray(np.uint8(scene_object_image))
             top_bar_images.append(scene_object_image)

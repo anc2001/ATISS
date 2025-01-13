@@ -1,10 +1,10 @@
-# 
+#
 # Copyright (C) 2021 NVIDIA Corporation.  All rights reserved.
 # Licensed under the NVIDIA Source Code License.
 # See LICENSE at https://github.com/nv-tlabs/ATISS.
 # Authors: Despoina Paschalidou, Amlan Kar, Maria Shugrina, Karsten Kreis,
 #          Andreas Geiger, Sanja Fidler
-# 
+#
 
 """Script for computing the FID score between real and synthesized scenes.
 """
@@ -40,35 +40,34 @@ class ThreedFrontRenderDataset(object):
 
 def main(argv):
     parser = argparse.ArgumentParser(
-        description=("Compute the FID scores between the real and the "
-                     "synthetic images")
+        description=(
+            "Compute the FID scores between the real and the " "synthetic images"
+        )
     )
     parser.add_argument(
         "path_to_real_renderings",
-        help="Path to the folder containing the real renderings"
+        help="Path to the folder containing the real renderings",
     )
     parser.add_argument(
         "path_to_synthesized_renderings",
-        help="Path to the folder containing the synthesized"
+        help="Path to the folder containing the synthesized",
     )
     parser.add_argument(
-        "path_to_annotations",
-        help="Path to the folder containing the annotations"
+        "path_to_annotations", help="Path to the folder containing the annotations"
     )
 
     args = parser.parse_args(argv)
 
     # Create Real datasets
-    config = dict(
-        train_stats="dataset_stats.txt",
-        room_layout_size="256,256"
-    )
+    config = dict(train_stats="dataset_stats.txt", room_layout_size="256,256")
     splits_builder = CSVSplitsBuilder(args.path_to_annotations)
-    test_real = ThreedFrontRenderDataset(CachedThreedFront(
-        args.path_to_real_renderings,
-        config=config,
-        scene_ids=splits_builder.get_splits(["test"])
-    ))
+    test_real = ThreedFrontRenderDataset(
+        CachedThreedFront(
+            args.path_to_real_renderings,
+            config=config,
+            scene_ids=splits_builder.get_splits(["test"]),
+        )
+    )
 
     print("Generating temporary a folder with test_real images...")
     path_to_test_real = "/tmp/test_real/"
@@ -98,7 +97,9 @@ def main(argv):
             shutil.copyfile(fi, "{}/{:05d}.png".format(path_to_test_fake, i))
 
         # Compute the FID score
-        fid_score = fid.compute_fid(path_to_test_real, path_to_test_fake, device=torch.device("cpu"))
+        fid_score = fid.compute_fid(
+            path_to_test_real, path_to_test_fake, device=torch.device("cpu")
+        )
         scores.append(fid_score)
         print(fid_score)
     print(sum(scores) / len(scores))

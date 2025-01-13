@@ -1,10 +1,10 @@
-# 
+#
 # Copyright (C) 2021 NVIDIA Corporation.  All rights reserved.
 # Licensed under the NVIDIA Source Code License.
 # See LICENSE at https://github.com/nv-tlabs/ATISS.
 # Authors: Despoina Paschalidou, Amlan Kar, Maria Shugrina, Karsten Kreis,
 #          Andreas Geiger, Sanja Fidler
-# 
+#
 
 """Script used for pickling the 3D Future dataset in order to be subsequently
 used by our scripts.
@@ -17,46 +17,38 @@ import pickle
 
 from scene_synthesis.datasets import filter_function
 from scene_synthesis.datasets.threed_front import ThreedFront
-from scene_synthesis.datasets.threed_front_dataset import \
-    dataset_encoding_factory
+from scene_synthesis.datasets.threed_front_dataset import dataset_encoding_factory
 from scene_synthesis.datasets.threed_future_dataset import ThreedFutureDataset
 
 
 def main(argv):
-    parser = argparse.ArgumentParser(
-        description="Pickle the 3D Future dataset"
+    parser = argparse.ArgumentParser(description="Pickle the 3D Future dataset")
+    parser.add_argument(
+        "output_directory", default="/tmp/", help="Path to output directory"
     )
     parser.add_argument(
-        "output_directory",
-        default="/tmp/",
-        help="Path to output directory"
+        "path_to_3d_front_dataset_directory", help="Path to the 3D-FRONT dataset"
     )
     parser.add_argument(
-        "path_to_3d_front_dataset_directory",
-        help="Path to the 3D-FRONT dataset"
+        "path_to_3d_future_dataset_directory", help="Path to the 3D-FUTURE dataset"
     )
     parser.add_argument(
-        "path_to_3d_future_dataset_directory",
-        help="Path to the 3D-FUTURE dataset"
-    )
-    parser.add_argument(
-        "path_to_model_info",
-        help="Path to the 3D-FUTURE model_info.json file"
+        "path_to_model_info", help="Path to the 3D-FUTURE model_info.json file"
     )
     parser.add_argument(
         "--path_to_invalid_bbox_jids",
         default="../config/black_list.txt",
-        help="Path to objects that ae blacklisted"
+        help="Path to objects that ae blacklisted",
     )
     parser.add_argument(
         "--path_to_invalid_scene_ids",
         default="../config/invalid_threed_front_rooms.txt",
-        help="Path to invalid scenes"
+        help="Path to invalid scenes",
     )
     parser.add_argument(
         "--annotation_file",
         default="../config/bedroom_threed_front_splits.csv",
-        help="Path to the train/test splits file"
+        help="Path to the train/test splits file",
     )
     parser.add_argument(
         "--dataset_filtering",
@@ -65,14 +57,14 @@ def main(argv):
             "threed_front_bedroom",
             "threed_front_livingroom",
             "threed_front_diningroom",
-            "threed_front_library"
+            "threed_front_library",
         ],
-        help="The type of dataset filtering to be used"
+        help="The type of dataset filtering to be used",
     )
     parser.add_argument(
         "--without_lamps",
         action="store_true",
-        help="If set ignore lamps when rendering the room"
+        help="If set ignore lamps when rendering the room",
     )
 
     args = parser.parse_args(argv)
@@ -88,12 +80,12 @@ def main(argv):
         invalid_bbox_jids = set(l.strip() for l in f)
 
     config = {
-        "filter_fn":                 args.dataset_filtering,
-        "min_n_boxes":               -1,
-        "max_n_boxes":               -1,
+        "filter_fn": args.dataset_filtering,
+        "min_n_boxes": -1,
+        "max_n_boxes": -1,
         "path_to_invalid_scene_ids": args.path_to_invalid_scene_ids,
         "path_to_invalid_bbox_jids": args.path_to_invalid_bbox_jids,
-        "annotation_file":           args.annotation_file
+        "annotation_file": args.annotation_file,
     }
 
     # Initially, we only consider the train split to compute the dataset
@@ -102,7 +94,7 @@ def main(argv):
         dataset_directory=args.path_to_3d_front_dataset_directory,
         path_to_model_info=args.path_to_model_info,
         path_to_models=args.path_to_3d_future_dataset_directory,
-        filter_fn=filter_function(config, ["train", "val"], args.without_lamps)
+        filter_fn=filter_function(config, ["train", "val"], args.without_lamps),
     )
     print("Loading dataset with {} rooms".format(len(scenes_dataset)))
 
@@ -116,8 +108,7 @@ def main(argv):
     objects_dataset = ThreedFutureDataset(objects)
     room_type = args.dataset_filtering.split("_")[-1]
     output_path = "{}/threed_future_model_{}.pkl".format(
-        args.output_directory,
-        room_type
+        args.output_directory, room_type
     )
     with open(output_path, "wb") as f:
         pickle.dump(objects_dataset, f)

@@ -62,10 +62,3 @@ RUN sudo chown -R user:user /app
 # Build the Python extension in-place and install the package in editable mode using conda run
 RUN conda run -n atiss python setup.py build_ext --inplace
 RUN conda run -n atiss pip install -e .
-
-# Make the entrypoint script executable
-COPY --chown=user:user entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
-
-# Set the entrypoint to the script
-ENTRYPOINT ["/app/entrypoint.sh"]

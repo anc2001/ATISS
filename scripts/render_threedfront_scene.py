@@ -1,10 +1,10 @@
-# 
+#
 # Copyright (C) 2021 NVIDIA Corporation.  All rights reserved.
 # Licensed under the NVIDIA Source Code License.
 # See LICENSE at https://github.com/nv-tlabs/ATISS.
 # Authors: Despoina Paschalidou, Amlan Kar, Maria Shugrina, Karsten Kreis,
 #          Andreas Geiger, Sanja Fidler
-# 
+#
 
 """Script used for visualizing 3D-FRONT room specified by its scene_id."""
 import argparse
@@ -38,6 +38,7 @@ def scene_init(mesh, up_vector, camera_position, camera_target, background):
         scene.light = camera_position
         if mesh is not None:
             scene.add(mesh)
+
     return inner
 
 
@@ -45,98 +46,81 @@ def main(argv):
     parser = argparse.ArgumentParser(
         description="Visualize a 3D-FRONT room from json file"
     )
+    parser.add_argument("scene_id", help="The scene id of the scene to be visualized")
+    parser.add_argument("output_directory", help="Path to output directory")
     parser.add_argument(
-        "scene_id",
-        help="The scene id of the scene to be visualized"
+        "path_to_3d_front_dataset_directory", help="Path to the 3D-FRONT dataset"
     )
     parser.add_argument(
-        "output_directory",
-        help="Path to output directory"
+        "path_to_3d_future_dataset_directory", help="Path to the 3D-FUTURE dataset"
     )
     parser.add_argument(
-        "path_to_3d_front_dataset_directory",
-        help="Path to the 3D-FRONT dataset"
+        "path_to_model_info", help="Path to the 3D-FUTURE model_info.json file"
     )
     parser.add_argument(
-        "path_to_3d_future_dataset_directory",
-        help="Path to the 3D-FUTURE dataset"
-    )
-    parser.add_argument(
-        "path_to_model_info",
-        help="Path to the 3D-FUTURE model_info.json file"
-    )
-    parser.add_argument(
-        "path_to_floor_plan_textures",
-        help="Path to floor texture images"
+        "path_to_floor_plan_textures", help="Path to floor texture images"
     )
     parser.add_argument(
         "--annotation_file",
         default="../config/bedroom_threed_front_splits.csv",
-        help="Path to the train/test splits file"
+        help="Path to the train/test splits file",
     )
     parser.add_argument(
         "--background",
         type=lambda x: list(map(float, x.split(","))),
         default="1,1,1,1",
-        help="Set the background of the scene"
+        help="Set the background of the scene",
     )
     parser.add_argument(
         "--up_vector",
         type=lambda x: tuple(map(float, x.split(","))),
         default="0,0,1",
-        help="Up vector of the scene"
+        help="Up vector of the scene",
     )
     parser.add_argument(
         "--camera_target",
         type=lambda x: tuple(map(float, x.split(","))),
         default="0,0,0",
-        help="Set the target for the camera"
+        help="Set the target for the camera",
     )
     parser.add_argument(
         "--camera_position",
         type=lambda x: tuple(map(float, x.split(","))),
         default="-2.0,-2.0,-2.0",
-        help="Camer position in the scene"
+        help="Camer position in the scene",
     )
     parser.add_argument(
         "--window_size",
         type=lambda x: tuple(map(int, x.split(","))),
         default="512,512",
-        help="Define the size of the scene and the window"
+        help="Define the size of the scene and the window",
     )
     parser.add_argument(
-        "--save_frames",
-        help="Path to save the visualization frames to"
+        "--save_frames", help="Path to save the visualization frames to"
     )
     parser.add_argument(
-        "--without_screen",
-        action="store_true",
-        help="Perform no screen rendering"
+        "--without_screen", action="store_true", help="Perform no screen rendering"
     )
     parser.add_argument(
         "--with_orthographic_projection",
         action="store_true",
-        help="Use orthographic projection"
+        help="Use orthographic projection",
     )
     parser.add_argument(
         "--with_floor_layout",
         action="store_true",
-        help="Visualize also the rooom's floor"
+        help="Visualize also the rooom's floor",
     )
     parser.add_argument(
-        "--with_walls",
-        action="store_true",
-        help="Visualize also the rooom's floor"
+        "--with_walls", action="store_true", help="Visualize also the rooom's floor"
     )
     parser.add_argument(
         "--with_door_and_windows",
         action="store_true",
-        help="Visualize also the rooom's floor"
+        help="Visualize also the rooom's floor",
     )
     parser.add_argument(
-        "--with_texture",
-        action="store_true",
-        help="Visualize objects with texture"
+        "--with_texture", action="store_true", help="Visualize objects with texture"
     )
 
     args = parser.parse_args(argv)
@@ -161,7 +145,7 @@ def main(argv):
         args.path_to_3d_future_dataset_directory,
         path_to_room_masks_dir=None,
         path_to_bounds=None,
-        filter_fn=lambda s: s
+        filter_fn=lambda s: s,
     )
     print("Loading dataset with {} rooms".format(len(d)))
 
@@ -182,9 +166,7 @@ def main(argv):
                 # Create a trimesh object for the same mesh in order to save
                 # everything as a single scene
                 tr_mesh = trimesh.load(furniture.raw_model_path, force="mesh")
-                tr_mesh.visual.material.image = Image.open(
-                    furniture.texture_image_path
-                )
+                tr_mesh.visual.material.image = Image.open(furniture.texture_image_path)
                 tr_mesh.vertices *= furniture.scale
                 theta = furniture.z_angle
                 R = np.zeros((3, 3))
@@ -192,9 +174,8 @@ def main(argv):
                 R[0, 2] = -np.sin(theta)
                 R[2, 0] = np.sin(theta)
                 R[2, 2] = np.cos(theta)
-                R[1, 1] = 1.
-                tr_mesh.vertices[...] = \
-                    tr_mesh.vertices.dot(R) + furniture.position
+                R[1, 1] = 1.0
+                tr_mesh.vertices[...] = tr_mesh.vertices.dot(R) + furniture.position
                 tr_mesh.vertices[...] = tr_mesh.vertices - s.centroid
                 trimesh_meshes.append(tr_mesh)
 
@@ -211,8 +192,7 @@ def main(argv):
                     if "WallInner" in ei.model_type:
                         renderables = renderables + [
                             ei.mesh_renderable(
-                                offset=-s.centroid,
-                                colors=(0.8, 0.8, 0.8, 0.6)
+                                offset=-s.centroid, colors=(0.8, 0.8, 0.8, 0.6)
                             )
                         ]
 
@@ -221,14 +201,13 @@ def main(argv):
                     if "Window" in ei.model_type or "Door" in ei.model_type:
                         renderables = renderables + [
                             ei.mesh_renderable(
-                                offset=-s.centroid,
-                                colors=(0.8, 0.8, 0.8, 0.6)
+                                offset=-s.centroid, colors=(0.8, 0.8, 0.8, 0.6)
                             )
                         ]
 
             if args.without_screen:
                 path_to_image = "{}/{}_".format(args.output_directory, s.uid)
-                behaviours += [SaveFrames(path_to_image+"{:03d}.png", 1)]
+                behaviours += [SaveFrames(path_to_image + "{:03d}.png", 1)]
                 render(
                     renderables,
                     size=args.window_size,
@@ -238,12 +217,12 @@ def main(argv):
                     background=args.background,
                     behaviours=behaviours,
                     n_frames=2,
-                    scene=scene
+                    scene=scene,
                 )
             else:
                 show(
                     renderables,
-                    behaviours=behaviours+[SnapshotOnKey()],
+                    behaviours=behaviours + [SnapshotOnKey()],
                     size=args.window_size,
                     camera_position=args.camera_position,
                     camera_target=args.camera_target,
@@ -253,8 +232,7 @@ def main(argv):
                 )
             # Create a trimesh scene and export it
             path_to_objs = os.path.join(
-                args.output_directory,
-                "train_{}".format(args.scene_id)
+                args.output_directory, "train_{}".format(args.scene_id)
             )
             if not os.path.exists(path_to_objs):
                 os.mkdir(path_to_objs)

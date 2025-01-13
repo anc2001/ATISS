@@ -14,11 +14,12 @@ from simple_3dviz.renderables.textured_mesh import Material, TexturedMesh
 from simple_3dviz import Mesh
 
 
-def get_textured_objects(bbox_params_t, objects_dataset, classes, cmap=None):
+def get_textured_objects(bbox_params_t, objects_dataset, classes, cmap=None, color_by_idx=False):
     # For each one of the boxes replace them with an object
     renderables = []
     lines_renderables = []
     trimesh_meshes = []
+    colors = []
     for j in range(1, bbox_params_t.shape[1]-1):
         query_size = bbox_params_t[0, j, -4:-1]
         query_label_idx = bbox_params_t[0, j, :-7].argmax(-1)
@@ -35,10 +36,16 @@ def get_textured_objects(bbox_params_t, objects_dataset, classes, cmap=None):
                 raw_mesh = Mesh.from_file(furniture.raw_model_path)
                 raw_mesh.colors = (0.8, 0.8, 0.8, 1.0)
         else:
+            if color_by_idx:
+                color = cmap(j)
+            else:
+                color = cmap(query_label_idx) 
+
             raw_mesh = Mesh.from_file(
                 furniture.raw_model_path, 
-                color = cmap(query_label_idx)
+                color = color 
             )
+            colors.append(color)
 
         raw_mesh.scale(furniture.scale)
 
@@ -69,12 +76,13 @@ def get_textured_objects(bbox_params_t, objects_dataset, classes, cmap=None):
         tr_mesh.visual.material.image = Image.open(
             furniture.texture_image_path
         )
+
         tr_mesh.vertices *= furniture.scale
         tr_mesh.vertices -= centroid
         tr_mesh.vertices[...] = tr_mesh.vertices.dot(R) + translation
         trimesh_meshes.append(tr_mesh)
 
-    return renderables, trimesh_meshes
+    return renderables, trimesh_meshes, colors 
 
 
 def get_floor_plan(scene, floor_textures):

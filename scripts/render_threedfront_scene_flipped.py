@@ -52,10 +52,7 @@ def main(argv):
         "config_file",
         help="Path to the file that contains the experiment configuration",
     )
-    parser.add_argument(
-        "output_directory", 
-        help="Path to the output directory"
-    )
+    parser.add_argument("output_directory", help="Path to the output directory")
     parser.add_argument(
         "path_to_pickled_3d_futute_models", help="Path to the 3D-FUTURE model meshes"
     )
@@ -105,7 +102,7 @@ def main(argv):
 
     config = load_config(args.config_file)
 
-    _ , dataset = get_dataset_raw_and_encoded(
+    _, dataset = get_dataset_raw_and_encoded(
         config["data"],
         filter_fn=filter_function(
             config["data"], split=config["training"].get("splits", ["train", "val"])
@@ -138,12 +135,12 @@ def main(argv):
     classes = np.array(dataset.class_labels)
 
     save_dir = Path(args.output_directory)
-    with open(args.subscene_info_path, 'r') as f:
+    with open(args.subscene_info_path, "r") as f:
         subscene_info = json.load(f)
 
     # Get a floor plan
-    vertices = np.array(subscene_info['vertices'])
-    faces = np.array(subscene_info['faces'])
+    vertices = np.array(subscene_info["vertices"])
+    faces = np.array(subscene_info["faces"])
 
     # Apply correction to align with our rendering
     rot_180_z = Rotation.from_rotvec([0, 0, np.pi])
@@ -154,12 +151,12 @@ def main(argv):
     floor_plan = [floor_plan]
 
     empty_box = {
-        'class_labels' : torch.zeros((1, 1, len(classes))),
-        'translations': torch.zeros((1, 1, 3)),
-        'sizes' : torch.zeros((1, 1, 3)),
-        'angles' : torch.zeros((1, 1, 1)),
+        "class_labels": torch.zeros((1, 1, len(classes))),
+        "translations": torch.zeros((1, 1, 3)),
+        "sizes": torch.zeros((1, 1, 3)),
+        "angles": torch.zeros((1, 1, 1)),
     }
-    boxes = dict() 
+    boxes = dict()
     for k, v in empty_box.items():
         boxes[k] = torch.clone(v)
     for object_info in subscene_info["objects"]:
@@ -172,9 +169,7 @@ def main(argv):
             "class_labels": torch.from_numpy(classes == object_info["category"])
             .float()
             .view(1, 1, len(classes)),
-            "translations": torch.from_numpy(translation)
-            .float()
-            .view(1, 1, 3),
+            "translations": torch.from_numpy(translation).float().view(1, 1, 3),
             "sizes": torch.from_numpy(size).float().view(1, 1, 3),
             "angles": torch.from_numpy(np.array(object_info["rotation"]))
             .float()
@@ -218,6 +213,7 @@ def main(argv):
         n_frames=1,
         scene=scene,
     )
+
 
 if __name__ == "__main__":
     main(sys.argv[1:])

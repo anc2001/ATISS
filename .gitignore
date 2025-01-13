@@ -21,6 +21,7 @@ env3/
 *.pkl
 wandb/
 output/
+*.sh
 
 #VS Code settings
 .vscode/

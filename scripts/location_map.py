@@ -137,7 +137,6 @@ def main(argv):
     )
     print("Loaded {} 3D-FUTURE models".format(len(objects_dataset)))
 
-
     # Create the scene and the behaviour list for simple-3dviz
     scene = Scene(size=args.window_size)
     scene.up_vector = args.up_vector
@@ -170,8 +169,8 @@ def main(argv):
     subscene_atiss_info = dict()
     for global_idx, subscene_info in tqdm(subscene_infos.items()):
         # Get a floor plan
-        vertices = np.array(subscene_info['vertices'])
-        faces = np.array(subscene_info['faces'])
+        vertices = np.array(subscene_info["vertices"])
+        faces = np.array(subscene_info["faces"])
 
         # Apply correction to align with our rendering
         rot_180_z = Rotation.from_rotvec([0, 0, np.pi])
@@ -218,19 +217,17 @@ def main(argv):
 
         room_mask = room_mask.to(device)
         boxes = {
-            'class_labels' : torch.zeros((1, 1, len(classes))).to(device),
-            'translations': torch.zeros((1, 1, 3)).to(device),
-            'sizes' : torch.zeros((1, 1, 3)).to(device),
-            'angles' : torch.zeros((1, 1, 1)).to(device),
+            "class_labels": torch.zeros((1, 1, len(classes))).to(device),
+            "translations": torch.zeros((1, 1, 3)).to(device),
+            "sizes": torch.zeros((1, 1, 3)).to(device),
+            "angles": torch.zeros((1, 1, 1)).to(device),
         }
 
         min_bound_translation, max_bound_translation = dataset.bounds["translations"]
         min_bound_size, max_bound_size = dataset.bounds["sizes"]
         min_bound_rotation, max_bound_rotation = dataset.bounds["angles"]
         for object_info in subscene_info["objects"]:
-            our_translation = np.array(
-                object_info["translation"]
-            )
+            our_translation = np.array(object_info["translation"])
             our_translation = rot_180_z.apply(our_translation)
             our_size = np.array(object_info["size"])
             our_translation[1] = our_size[1]
@@ -238,9 +235,7 @@ def main(argv):
             normalized_translation = dataset.scale(
                 our_translation, min_bound_translation, max_bound_translation
             )
-            normalized_size = dataset.scale(
-                our_size, min_bound_size, max_bound_size
-            )
+            normalized_size = dataset.scale(our_size, min_bound_size, max_bound_size)
             our_rotation = np.array(object_info["rotation"])
             if our_rotation > max_bound_rotation:
                 our_rotation -= 2 * np.pi
@@ -259,7 +254,10 @@ def main(argv):
                 .float()
                 .view(1, 1, 3)
                 .to(device),
-                "sizes": torch.from_numpy(normalized_size).float().view(1, 1, 3).to(device),
+                "sizes": torch.from_numpy(normalized_size)
+                .float()
+                .view(1, 1, 3)
+                .to(device),
                 "angles": torch.from_numpy(normalized_rotation)
                 .float()
                 .view(1, 1, 1)
@@ -272,13 +270,15 @@ def main(argv):
         query_category = subscene_info["query_object"]["category"]
         assert query_category in classes
         query_class_label = torch.from_numpy(classes == query_category)
-        query_class_label = query_class_label.float().view(1, 1, len(classes)).to(device)
+        query_class_label = (
+            query_class_label.float().view(1, 1, len(classes)).to(device)
+        )
 
         subscene_atiss_info[global_idx] = {
-            "room_mask" : room_mask,
-            "boxes" : boxes,
-            "floor_plan" : floor_plan,
-            "query_class_label" : query_class_label,
+            "room_mask": room_mask,
+            "boxes": boxes,
+            "floor_plan": floor_plan,
+            "query_class_label": query_class_label,
         }
 
     for weight_file in Path(args.run_directory).glob("model_*"):
@@ -294,7 +294,7 @@ def main(argv):
         output_directory = args.run_directory / f"epoch_{epoch}"
         if output_directory.exists():
             shutil.rmtree(output_directory)
-        output_directory.mkdir(parents=True) 
+        output_directory.mkdir(parents=True)
 
         print("epoch", epoch)
         for global_idx in tqdm(subscene_infos.keys()):
@@ -351,10 +351,10 @@ def main(argv):
 
             location_pdf = pdf / pdf.max()
 
-            np.savez(save_dir / 'location_pdf', location_pdf)
+            np.savez(save_dir / "location_pdf", location_pdf)
 
             if args.debug:
-                box = network.end_symbol(device) 
+                box = network.end_symbol(device)
                 for k in box.keys():
                     boxes[k] = torch.cat([boxes[k], box[k]], dim=1)
 
@@ -380,12 +380,17 @@ def main(argv):
                     .numpy()
                 )
 
-                renderables, _ = get_textured_objects(bbox_params_t, objects_dataset, classes)
+                renderables, _ = get_textured_objects(
+                    bbox_params_t, objects_dataset, classes
+                )
                 renderables += floor_plan
 
                 # Do the rendering
                 path_to_image = save_dir / f"scene"
-                behaviours = [LightToCamera(), SaveFrames(str(path_to_image) + ".png", 1)]
+                behaviours = [
+                    LightToCamera(),
+                    SaveFrames(str(path_to_image) + ".png", 1),
+                ]
 
                 render(
                     renderables,
