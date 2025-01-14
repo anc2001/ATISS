@@ -81,6 +81,10 @@ def main(argv):
         "--color_object_indices",
         action="store_true"
     )
+    parser.add_argument(
+        "--walls",
+        action="store_true"
+    )
     args = parser.parse_args(argv)
 
     # Disable trimesh's logger
@@ -124,180 +128,245 @@ def main(argv):
     )
 
     scene_folder = args.scene_folder
-    with open(scene_folder / "scene.json", 'r') as f:
-        subscene_info = json.load(f)
+    json_paths = []
+    json_paths.append(scene_folder / "scene.json")
+    for sample_dir in (scene_folder / "samples").iterdir():
+        json_paths.append(sample_dir / "scene.json")
 
-    # Get a floor plan
-    vertices = np.array(subscene_info['vertices'])
-    faces = np.array(subscene_info['faces'])
+    for json_path in json_paths:
+        output_dir = json_path.parent
+        with open(json_path, 'r') as f:
+            subscene_info = json.load(f)
 
-    # Apply correction to align with our rendering
-    rot_180_z = Rotation.from_rotvec([0, 0, np.pi])
-    vertices = rot_180_z.apply(vertices)
-    faces = faces[:, ::-1]
+        # Get a floor plan
+        vertices = np.array(subscene_info['vertices'])
+        faces = np.array(subscene_info['faces'])
 
-    floor_plan = Mesh.from_faces(vertices, faces, (0.7, 0.7, 0.7, 1.0))
-    floor_plan_tr = trimesh.Trimesh(vertices = vertices, faces = faces)
-    floor_plan_tr.vertex_colors = (0.7, 0.7, 0.7, 1.0)
-    floor_plan = [floor_plan]
+        # Apply correction to align with our rendering
+        rot_180_z = Rotation.from_rotvec([0, 0, np.pi])
+        vertices = rot_180_z.apply(vertices)
+        faces = faces[:, ::-1]
 
-    empty_box = {
-        'class_labels' : torch.zeros((1, 1, len(classes))),
-        'translations': torch.zeros((1, 1, 3)),
-        'sizes' : torch.zeros((1, 1, 3)),
-        'angles' : torch.zeros((1, 1, 1)),
-    }
-    boxes = dict()
-    for k, v in empty_box.items():
-        boxes[k] = torch.clone(v)
+        floor_plan = Mesh.from_faces(vertices, faces, (0.7, 0.7, 0.7, 1.0))
+        floor_plan_tr = trimesh.Trimesh(vertices = vertices, faces = faces)
+        floor_plan_tr.vertex_colors = (0.7, 0.7, 0.7, 1.0)
+        floor_plan = [floor_plan]
 
-    object_info_list = subscene_info["objects"]
-    contains_query = False
-    if "query_object" in subscene_info:
-        query_info = subscene_info["query_object"]
-        object_info_list.append(query_info)
-        contains_query = True
-
-    if args.color_object_indices:
-        cmap = plt.get_cmap("Set1") 
-    else:
-        cmap = None
-
-    for object_idx, object_info in enumerate(object_info_list): 
-        if object_info["category"] in ["pendant_lamp", "ceiling_lamp"]:
-            continue
-
-        translation = np.array(object_info["translation"])
-        translation = rot_180_z.apply(translation)
-        size = np.array(object_info["size"])
-        translation[1] = size[1]
-
-        if contains_query and object_idx == (len(object_info_list) - 1):
-            translation[1] = 0
-
-        box = {
-            "class_labels": torch.from_numpy(classes == object_info["category"])
-            .float()
-            .view(1, 1, len(classes)),
-            "translations": torch.from_numpy(translation)
-            .float()
-            .view(1, 1, 3),
-            "sizes": torch.from_numpy(size).float().view(1, 1, 3),
-            "angles": torch.from_numpy(np.array(object_info["rotation"]))
-            .float()
-            .view(1, 1, 1),
+        empty_box = {
+            'class_labels' : torch.zeros((1, 1, len(classes))),
+            'translations': torch.zeros((1, 1, 3)),
+            'sizes' : torch.zeros((1, 1, 3)),
+            'angles' : torch.zeros((1, 1, 1)),
         }
-        for k in box.keys():
-            boxes[k] = torch.cat([boxes[k], box[k]], dim=1)
+        boxes = dict()
+        for k, v in empty_box.items():
+            boxes[k] = torch.clone(v)
 
-    for k in empty_box.keys():
-        boxes[k] = torch.cat([boxes[k], torch.clone(empty_box[k])], dim=1)
+        object_info_list = subscene_info["objects"]
 
-    bbox_params_t = (
-        torch.cat(
-            [
-                boxes["class_labels"],
-                boxes["translations"],
-                boxes["sizes"],
-                boxes["angles"],
-            ],
-            dim=-1,
+        contains_query = False
+        if "query_object" in subscene_info:
+            query_info = subscene_info["query_object"]
+            object_info_list.append(query_info)
+            contains_query = True
+
+
+        for object_idx, object_info in enumerate(object_info_list): 
+            if object_info["category"] in ["pendant_lamp", "ceiling_lamp"]:
+                continue
+
+            translation = np.array(object_info["translation"])
+            translation = rot_180_z.apply(translation)
+            size = np.array(object_info["size"])
+            translation[1] = size[1]
+
+            if contains_query and object_idx == (len(object_info_list) - 1):
+                translation[1] = 0
+
+            box = {
+                "class_labels": torch.from_numpy(classes == object_info["category"])
+                .float()
+                .view(1, 1, len(classes)),
+                "translations": torch.from_numpy(translation)
+                .float()
+                .view(1, 1, 3),
+                "sizes": torch.from_numpy(size).float().view(1, 1, 3),
+                "angles": torch.from_numpy(np.array(object_info["rotation"]))
+                .float()
+                .view(1, 1, 1),
+            }
+            for k in box.keys():
+                boxes[k] = torch.cat([boxes[k], box[k]], dim=1)
+
+        for k in empty_box.keys():
+            boxes[k] = torch.cat([boxes[k], torch.clone(empty_box[k])], dim=1)
+
+        bbox_params_t = (
+            torch.cat(
+                [
+                    boxes["class_labels"],
+                    boxes["translations"],
+                    boxes["sizes"],
+                    boxes["angles"],
+                ],
+                dim=-1,
+            )
+            .cpu()
+            .numpy()
         )
-        .cpu()
-        .numpy()
-    )
 
-    renderables, tr_meshes, colors = get_textured_objects(
-        bbox_params_t, 
-        objects_dataset, 
-        classes,
-        cmap=cmap,
-        color_by_idx=args.color_object_indices
-    )
-
-    if contains_query:
-        query_tr_mesh = tr_meshes[-1]
-        renderables = renderables[:-1]
-        tr_meshes = tr_meshes[:-1]
-
-        query_folder = scene_folder / "query_mesh"
-        query_folder.mkdir(exist_ok = True)
-        export_scene(query_folder, [query_tr_mesh]) 
         if args.color_object_indices:
-            color = colors[-1]
-            colors = colors[:-1]
-            with open(query_folder / "colors.json", "w") as f:
-                json.dump({0: color}, f, indent=4)
+            num_objects = bbox_params_t.shape[1] - 2
+            if args.walls:
+                num_objects += len(subscene_info["walls"])
+            cmap = plt.get_cmap("tab20", num_objects) 
+        else:
+            cmap = None
 
-    mesh_folder = scene_folder / "scene_mesh"
-    mesh_folder.mkdir(exist_ok = True)
-    export_scene(mesh_folder, tr_meshes) 
-    if args.color_object_indices:
-        with open(mesh_folder / "colors.json", "w") as f:
-            colors_dict = dict()
-            for i in range(len(renderables)):
-                colors_dict[i] = colors[i]
-            colors_dict = {i : colors[i] for i in range(len(colors))}
-            json.dump(colors_dict, f, indent=4)
+        renderables, tr_meshes, colors = get_textured_objects(
+            bbox_params_t, 
+            objects_dataset, 
+            classes,
+            cmap=cmap,
+            color_by_idx=args.color_object_indices
+        )
 
-    # Do the rendering
-    path_to_image = scene_folder / "atiss_viz.png"
-    behaviors = [SaveFrames(str(path_to_image), 1)]
+        if args.walls:
+            wall_renderables = []
+            wall_tr_meshes = []
+            wall_colors = []
+            wall_height = 2
+            for wall_idx, wall_info in enumerate(subscene_info["walls"]):
+                wall_color = cmap(wall_idx + len(renderables))
 
-    renderables += floor_plan
-    tr_meshes.append(floor_plan_tr)
-    render(
-        renderables,
-        behaviours=behaviors,
-        size=args.window_size,
-        camera_position=(0, 4, 0),
-        camera_target=(0, 0, 0),
-        up_vector=(1, 0, 0),
-        background=args.background,
-        n_frames=1,
-        scene=scene,
-    )
+                extent = np.array(wall_info["size"]) * 2
+                extent[1] = wall_height 
+                translation = wall_info["translation"]
+                translation = rot_180_z.apply(translation)
+                translation[1] = wall_height / 2
+                theta = wall_info["rotation"]
 
-    if (scene_folder / "masks.npz").exists():
-        mask_folder = scene_folder / "masks"
-        mask_folder.mkdir(exist_ok = True)
+                box_wall = trimesh.creation.box(extent)
+                A = np.zeros((4, 4))
+                A[0, 0] = np.cos(theta)
+                A[0, 2] = -np.sin(theta)
+                A[2, 0] = np.sin(theta)
+                A[2, 2] = np.cos(theta)
+                A[1, 1] = 1.
+                A[:3, 3] = translation 
+                A[3, 3] = 1
+                box_wall.apply_transform(A)
+                wall_tr_meshes.append(box_wall)
 
-        scene_image = np.array(Image.open(path_to_image))[..., :3] / 255.0
-        masks = np.load(scene_folder / "masks.npz")["masks"]
-        for mask_idx, mask in enumerate(masks):
-            if len(mask.shape) == 3:
-                mask_image_collapsed = np.sum(mask, axis=0).astype(bool).astype(float)
-                mask_image_collapsed = np.repeat(
-                    np.expand_dims(mask_image_collapsed, axis=-1), 
-                    3, 
-                    axis=2
-                )
-                overlay_collapsed = np.clip(scene_image - mask_image_collapsed, 0, 1)
-                overlay_collapsed = Image.fromarray(np.uint8(overlay_collapsed * 255))
-                overlay_collapsed.save(mask_folder / f"mask_{mask_idx}_collapsed.png")
+                wall_mesh_renderable = Mesh.from_faces(
+                    box_wall.vertices, box_wall.faces, wall_color
+                ) 
+                wall_renderables.append(wall_mesh_renderable)
 
-                stacked_references = mask
-                top_row = np.array([])
-                bottom_row = np.array([])
-                for i in range(4):
-                    mask_image = np.expand_dims(stacked_references[i], axis=2)
-                    mask_image = np.repeat(mask_image, 3, axis=2)
-                    image_slice = np.clip(scene_image - mask_image, 0, 1)
+                wall_colors.append(wall_color)
 
-                    if i == 0:
-                        top_row = image_slice
-                    elif i == 1:
-                        top_row = np.append(top_row, image_slice, axis=1)
-                    elif i == 2:
-                        bottom_row = image_slice
-                    elif i == 3:
-                        bottom_row = np.append(bottom_row, image_slice, axis=1)
+        if contains_query:
+            query_tr_mesh = tr_meshes[-1]
+            renderables = renderables[:-1]
+            tr_meshes = tr_meshes[:-1]
 
-                image = np.append(top_row, bottom_row, axis=0)
-                full_image = Image.fromarray(np.uint8(image * 255))
-                full_image.save(mask_folder / f"mask_{mask_idx}.png")
-            else:
-                pass
+            query_folder = output_dir / "query_mesh"
+            if query_folder.exists():
+                shutil.rmtree(query_folder)
+            query_folder.mkdir()
+
+            export_scene(query_folder, [query_tr_mesh]) 
+            if args.color_object_indices:
+                color = colors[-1]
+                colors = colors[:-1]
+                with open(query_folder / "colors.json", "w") as f:
+                    json.dump({0: color}, f, indent=4)
+
+        mesh_folder = output_dir / "scene_mesh"
+        if mesh_folder.exists():
+            shutil.rmtree(mesh_folder)
+        mesh_folder.mkdir()
+        if args.walls:
+            tr_meshes += wall_tr_meshes
+            colors += wall_colors
+
+        tr_meshes.append(floor_plan_tr)
+        export_scene(mesh_folder, tr_meshes) 
+        if args.color_object_indices:
+            with open(mesh_folder / "colors.json", "w") as f:
+                colors_dict = dict()
+                for i in range(len(renderables)):
+                    colors_dict[i] = colors[i]
+                colors_dict = {i : colors[i] for i in range(len(colors))}
+                json.dump(colors_dict, f, indent=4)
+
+        # Do the rendering
+        path_to_image = output_dir / "atiss_viz.png"
+        behaviors = [SaveFrames(str(path_to_image), 1)]
+
+        if args.walls:
+            renderables += wall_renderables
+
+        renderables += floor_plan
+        render(
+            renderables,
+            behaviours=behaviors,
+            size=args.window_size,
+            camera_position=(0, 4, 0),
+            camera_target=(0, 0, 0),
+            up_vector=(1, 0, 0),
+            background=args.background,
+            n_frames=1,
+            scene=scene,
+        )
+
+        if (output_dir / "masks.npz").exists():
+            mask_folder = output_dir / "masks"
+            mask_folder.mkdir(exist_ok = True)
+
+            scene_image = np.array(Image.open(path_to_image))[..., :3] / 255.0
+            masks = np.load(output_dir / "masks.npz")["masks"]
+            for mask_idx, mask in enumerate(masks):
+                if len(mask.shape) == 3:
+                    mask_image_collapsed = np.sum(mask, axis=0).astype(bool).astype(float)
+                    mask_image_collapsed = np.repeat(
+                        np.expand_dims(mask_image_collapsed, axis=-1), 
+                        3, 
+                        axis=2
+                    )
+                    overlay_collapsed = np.clip(scene_image - mask_image_collapsed, 0, 1)
+                    overlay_collapsed = Image.fromarray(np.uint8(overlay_collapsed * 255))
+                    overlay_collapsed.save(mask_folder / f"mask_{mask_idx}_collapsed.png")
+
+                    stacked_references = mask
+                    top_row = np.array([])
+                    bottom_row = np.array([])
+                    for i in range(4):
+                        mask_image = np.expand_dims(stacked_references[i], axis=2)
+                        mask_image = np.repeat(mask_image, 3, axis=2)
+                        image_slice = np.clip(scene_image - mask_image, 0, 1)
+
+                        if i == 0:
+                            top_row = image_slice
+                        elif i == 1:
+                            top_row = np.append(top_row, image_slice, axis=1)
+                        elif i == 2:
+                            bottom_row = image_slice
+                        elif i == 3:
+                            bottom_row = np.append(bottom_row, image_slice, axis=1)
+
+                    image = np.append(top_row, bottom_row, axis=0)
+                    full_image = Image.fromarray(np.uint8(image * 255))
+                    full_image.save(mask_folder / f"mask_{mask_idx}.png")
+                else:
+                    mask_image_collapsed = np.repeat(
+                        np.expand_dims(mask, axis=-1), 
+                        3, 
+                        axis=2
+                    )
+                    overlay_collapsed = np.clip(scene_image - mask_image_collapsed, 0, 1)
+                    overlay_collapsed = Image.fromarray(np.uint8(overlay_collapsed * 255))
+                    overlay_collapsed.save(mask_folder / f"mask_{mask_idx}_collapsed.png")
 
     vdisplay.stop()
 

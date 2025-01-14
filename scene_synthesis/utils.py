@@ -37,7 +37,7 @@ def get_textured_objects(bbox_params_t, objects_dataset, classes, cmap=None, col
                 raw_mesh.colors = (0.8, 0.8, 0.8, 1.0)
         else:
             if color_by_idx:
-                color = cmap(j)
+                color = cmap(j - 1)
             else:
                 color = cmap(query_label_idx) 
 

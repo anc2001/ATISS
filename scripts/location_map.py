@@ -17,6 +17,7 @@ import shutil
 from PIL import Image
 from tqdm import tqdm
 import json
+from xvfbwrapper import Xvfb
 
 import numpy as np
 import torch
@@ -136,6 +137,9 @@ def main(argv):
         args.path_to_pickled_3d_future_models
     )
     print("Loaded {} 3D-FUTURE models".format(len(objects_dataset)))
+
+    vdisplay = Xvfb(width = 1280, height = 740, maxclients="1024")
+    vdisplay.start()
 
     # Create the scene and the behaviour list for simple-3dviz
     scene = Scene(size=args.window_size)
@@ -336,13 +340,18 @@ def main(argv):
             cell_size = 6.2 / grid_size
             min_bound, max_bound = dataset.bounds["translations"]
 
-            x = np.linspace(3, -3, 256)
-            z = np.linspace(-3, 3, 256)
+            # global space
+            x = np.linspace(3.1, -3.1, 256)
+            z = np.linspace(-3.1, 3.1, 256)
 
+            # scale to local space
             x_mask = np.logical_and(x > min_bound[0], x < max_bound[0])
             z_mask = np.logical_and(z > min_bound[2], z < max_bound[2])
-            x[x_mask] = np.linspace(1, -1, x_mask.sum())
-            z[z_mask] = np.linspace(-1, 1, z_mask.sum())
+            x = (x - min_bound[0]) / (max_bound[0] - min_bound[0])
+            z = (z - min_bound[2]) / (max_bound[2] - min_bound[2])
+            x = (2 * x) - 1
+            z = (2 * z) - 1
+
             x_density = mixture_pdf(x, x_probs, x_means, x_scales)
             z_density = mixture_pdf(z, z_probs, z_means, z_scales)
             x_density[~x_mask] = 0
@@ -409,6 +418,8 @@ def main(argv):
                 scene_image = np.array(Image.open(path_to_image))
                 scene_image[mask] = [255, 0, 0, 255]
                 Image.fromarray(scene_image).save(path_to_image)
+
+    vdisplay.stop()
 
 
 if __name__ == "__main__":
