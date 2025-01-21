@@ -1,10 +1,10 @@
 data:
     dataset_type: "cached_threedfront"
     encoding_type: "cached_autoregressive_wocm_eval"
-    dataset_directory: "/home/achang/scenesynth/3DFRONT/ATISS_bedroom"
-    annotation_file: "/home/achang/scenesynth/ATISS/config/bedroom_threed_front_scenesynth_splits.csv"
-    path_to_invalid_scene_ids: "config/invalid_threed_front_rooms.txt"
-    path_to_invalid_bbox_jids: "/home/achang/scenesynth/ATISS/config/black_list_temp.txt"
+    dataset_directory: "/home/achang/scenesynth/ATISS_data/bedroom/rooms"
+    annotation_file: "/home/achang/scenesynth/personal/SceneSynth/data/3D-FRONT-bedroom/all.csv"
+    path_to_invalid_scene_ids: "/home/achang/scenesynth/personal/ATISS/config/invalid_threed_front_rooms.txt" 
+    path_to_invalid_bbox_jids: "/home/achang/scenesynth/personal/ATISS/config/black_list.txt" 
     filter_fn: "threed_front_bedroom"
     train_stats: "dataset_stats.txt"
     room_layout_size: "64,64"
@@ -40,7 +40,7 @@ training:
     weight_decay: 0.0
 
 validation:
-    splits: ["test"]
+    splits: ["val"]
     frequency: 5
     batch_size: 128
 

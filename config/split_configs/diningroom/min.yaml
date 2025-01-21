@@ -2,7 +2,7 @@ data:
     dataset_type: "cached_threedfront"
     encoding_type: "cached_autoregressive_wocm"
     dataset_directory: "/home/achang/scenesynth/ATISS_data/diningroom/rooms"
-    annotation_file: "/home/achang/scenesynth/personal/SceneSynth/data/3D-FRONT-diningroom/all.csv"
+    annotation_file: "/home/achang/scenesynth/personal/SceneSynth/data/3D-FRONT-diningroom/min.csv"
     path_to_invalid_scene_ids: "/home/achang/scenesynth/personal/ATISS/config/invalid_threed_front_rooms.txt" 
     path_to_invalid_bbox_jids: "/home/achang/scenesynth/personal/ATISS/config/black_list.txt" 
     filter_fn: "threed_front_diningroom"

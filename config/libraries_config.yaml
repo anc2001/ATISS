@@ -1,8 +1,10 @@
 data:
     dataset_type: "cached_threedfront"
     encoding_type: "cached_autoregressive_wocm"
-    dataset_directory: "path_to_dataset_directory"
-    annotation_file: "../config/library_threed_front_splits.csv"
+    dataset_directory: "/home/achang/scenesynth/ATISS_data/library/rooms"
+    annotation_file: "/home/achang/scenesynth/personal/SceneSynth/data/3D-FRONT-library/all.csv"
+    path_to_invalid_scene_ids: "/home/achang/scenesynth/personal/ATISS/config/invalid_threed_front_rooms.txt" 
+    path_to_invalid_bbox_jids: "/home/achang/scenesynth/personal/ATISS/config/black_list.txt" 
     filter_fn: "threed_front_library"
     augmentations: ["rotations"]
     train_stats: "dataset_stats.txt"
@@ -29,17 +31,17 @@ feature_extractor:
     input_channels: 1
 
 training:
-    splits: ["train", "val"]
-    epochs: 10000
+    splits: ["train"] 
+    epochs: 200 
     steps_per_epoch: 500
     batch_size: 128
-    save_frequency: 50
+    save_frequency: 25 
     optimizer: Adam
     lr: 0.0001
     weight_decay: 0.0
 
 validation:
-    splits: ["test"]
+    splits: ["val"]
     frequency: 5
     batch_size: 128
 

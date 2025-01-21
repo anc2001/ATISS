@@ -1,11 +1,11 @@
 data:
     dataset_type: "cached_threedfront"
     encoding_type: "cached_autoregressive_wocm"
-    dataset_directory: "/home/achang/scenesynth/ATISS_data/diningroom/rooms"
-    annotation_file: "/home/achang/scenesynth/personal/SceneSynth/data/3D-FRONT-diningroom/all.csv"
+    dataset_directory: "/home/achang/scenesynth/ATISS_data/livingroom/rooms"
+    annotation_file: "/home/achang/scenesynth/personal/SceneSynth/data/3D-FRONT-livingroom/75_percent.csv"
     path_to_invalid_scene_ids: "/home/achang/scenesynth/personal/ATISS/config/invalid_threed_front_rooms.txt" 
     path_to_invalid_bbox_jids: "/home/achang/scenesynth/personal/ATISS/config/black_list.txt" 
-    filter_fn: "threed_front_diningroom"
+    filter_fn: "threed_front_livingroom"
     augmentations: ["rotations"]
     train_stats: "dataset_stats.txt"
     room_layout_size: "64,64"
@@ -31,7 +31,7 @@ feature_extractor:
     input_channels: 1
 
 training:
-    splits: ["train"]
+    splits: ["train"] 
     epochs: 200 
     steps_per_epoch: 500
     batch_size: 128

@@ -231,19 +231,6 @@ def main(argv):
                 classes,
                 cmap=cmap,
             )
-
-            i = 0
-            for object_info in subscene_info["objects"]:
-                if object_info["category"] in ["pendant_lamp", "ceiling_lamp"]:
-                    continue
-
-                object_info["model_uid"] = furnitures[i].model_uid
-                object_info["model_jid"] = furnitures[i].model_jid
-                i += 1
-
-            with open(scene_folder / "scene_renderable.json", "w") as f:
-                json.dump(subscene_info, f, indent=4)
-
             renderables += floor_plan
 
             # Do the rendering

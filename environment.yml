@@ -22,3 +22,4 @@ dependencies:
     - simple_3dviz==0.4.0
     - pytorch-fast-transformers==0.4.0
     - xvfbwrapper
+    - opencv-python

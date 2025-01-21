@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 import json
 from mathutils import Matrix, Vector
+import shutil
 
 def clear_scene():
     """Clear the current scene of all objects."""
@@ -13,6 +14,7 @@ def clear_scene():
 def import_meshes_from_folder(folder_path):
     """Import all mesh files from the specified folder."""
     colors_path = Path(folder_path) / "colors.json"
+    colors = None
     if colors_path.exists():
         with open(colors_path, 'r') as f:
             colors = json.load(f)
@@ -89,16 +91,18 @@ def setup_lighting(query=False):
         rotation_matrix = Matrix((x_axis, y_axis, z_axis)).transposed()
         area.matrix_world = Matrix.Translation(location) @ rotation_matrix.to_4x4()
     else:
-        # Add a sun lamp
-        bpy.ops.object.light_add(type='SUN', location=(5, 5, 5))
-        sun = bpy.context.object
-        sun.data.energy = 3.0
+        bpy.ops.object.light_add(type='POINT', location=(5, -5, 5))
+        light = bpy.context.object
+        light.data.energy = 1000
 
-        # Add an area light for soft shadows
-        bpy.ops.object.light_add(type='AREA', location=(0, 0, 10))
-        area = bpy.context.object
-        area.data.energy = 500 
-        area.data.size = 5
+        bpy.ops.object.light_add(type='POINT', location=(-5, -5, 5))
+        light = bpy.context.object
+        light.data.energy = 1000
+
+        bpy.ops.object.light_add(type='POINT', location=(-5, 5, 5))
+        light = bpy.context.object
+        light.data.energy = 500
+
 
 def set_camera(location, up_vector, target_position):
     """Add a camera at the specified location, aligned to look at the target position."""
@@ -156,6 +160,54 @@ def render_viewpoints(output_folder, viewpoints, resolution=(1920, 1080)):
         # Remove the camera after rendering
         bpy.data.objects.remove(camera, do_unlink=True)
 
+def process_folder(input_folder, resolution):
+    if (input_folder / "scene_mesh").exists():
+        viewpoints = [
+            ((0, 0, 14), (1, 0, 0), (0, 0, 0)),  # (location, up_vector, target_position)
+            # ((8, 8, 9.5), (0, 0, 1), (0, 0, 0)),
+            # ((-8, 8, 9.5), (0, 0, 1), (0, 0, 0)),
+            # ((-8, -8, 9.5), (0, 0, 1), (0, 0, 0)),
+            # ((6, -6, 6), (0, 0, 1), (0, 0, 0)),
+        ]
+
+        clear_scene()
+        import_meshes_from_folder(input_folder / "scene_mesh")
+        setup_lighting()
+        output_folder = input_folder / "blender_scene_renderings"
+        if output_folder.exists():
+            shutil.rmtree(output_folder)
+        render_viewpoints(output_folder, viewpoints, resolution)
+
+#    if (input_folder / "query_mesh").exists(): 
+#        viewpoints = [
+#            ((0, -7, 0), (0, 0, 1), (0, 0, 0))
+#        ]
+#
+#        clear_scene()
+#        import_meshes_from_folder(input_folder / "query_mesh")
+#        setup_lighting(query=True)
+#        render_viewpoints(input_folder / "blender_query_renderings", viewpoints, resolution)
+#
+#    if (input_folder / "samples").exists():
+#        for samples_folder in (input_folder / "samples").iterdir():
+#            viewpoints = [
+#                # ((0, 0, 12), (1, 0, 0), (0, 0, 0)),  # (location, up_vector, target_position)
+#                # ((8, 8, 10), (0, 0, 1), (0, 0, 0)),
+#                # ((-8, 8, 10), (0, 0, 1), (0, 0, 0)),
+#                # ((-8, -8, 10), (0, 0, 1), (0, 0, 0)),
+#                # ((8, -8, 10), (0, 0, 1), (0, 0, 0)),
+#                # ((0, -5, 3), (0, 0, 1), (0, 5, 0)),
+#                ((6, -6, 6), (0, 0, 1), (0, 0, 0)),
+#            ]
+#
+#            clear_scene()
+#            import_meshes_from_folder(samples_folder / "scene_mesh")
+#            setup_lighting()
+#            render_viewpoints(samples_folder/ "blender_scene_renderings", viewpoints, resolution)
+#
+    print("Rendering complete!")
+
+
 # Main script
 if __name__ == "__main__":
     if len(sys.argv) < 4:
@@ -164,35 +216,18 @@ if __name__ == "__main__":
 
     # Parse command line arguments
     args = sys.argv[sys.argv.index("--") + 1:]
-    input_folder = args[0]
-    input_folder = Path(input_folder)
     resolution_x = int(args[1])
     resolution_y = int(args[2])
     resolution = (resolution_x, resolution_y)
 
-    if (input_folder / "query_mesh").exists(): 
-        viewpoints = [
-            ((0, -7, 0), (0, 0, 1), (0, 0, 0))
-        ]
+    input_folder = args[0]
+    input_folder = Path(input_folder)
 
-        clear_scene()
-        import_meshes_from_folder(input_folder / "query_mesh")
-        setup_lighting(query=True)
-        render_viewpoints(input_folder / "blender_query_renderings", viewpoints, resolution)
-
-    if (input_folder / "scene_mesh").exists():
-        viewpoints = [
-            ((0, 0, 10), (1, 0, 0), (0, 0, 0)),  # (location, up_vector, target_position)
-            ((7, 7, 8.5), (0, 0, 1), (0, 0, 0)),
-            ((-7, 7, 8.5), (0, 0, 1), (0, 0, 0)),
-            ((-7, -7, 8.5), (0, 0, 1), (0, 0, 0)),
-            ((7, -7, 8.5), (0, 0, 1), (0, 0, 0)),
-        ]
-
-        clear_scene()
-        import_meshes_from_folder(input_folder / "scene_mesh")
-        setup_lighting()
-        render_viewpoints(input_folder / "blender_scene_renderings", viewpoints, resolution)
-
-    print("Rendering complete!")
-
+    is_text_file = True 
+    if is_text_file:
+        with open(input_folder, "r") as f:
+            paths = [Path(line.rstrip()) for line in f]
+        for scene_folder_path in paths:
+            process_folder(scene_folder_path, resolution)
+    else:
+        process_folder(input_folder, resolution)

@@ -154,7 +154,6 @@ def main(argv):
 
         vdisplay = Xvfb(width=1280, height=740, maxclients="1024")
         vdisplay.start()
-
         # Create the scene and the behaviour list for simple-3dviz
         scene = Scene(size=args.window_size)
         scene.up_vector = args.up_vector
@@ -172,6 +171,8 @@ def main(argv):
         )
 
         for scene_num in tqdm(range(args.num_scenes)):
+            torch.cuda.empty_cache()
+
             scene_idx = scene_indices[scene_num % len(dataset)]
             current_scene = raw_dataset[scene_idx]
 
@@ -295,7 +296,7 @@ def main(argv):
                     scene=scene,
                 )
 
-            vdisplay.stop()
+        vdisplay.stop()
 
 
 if __name__ == "__main__":
