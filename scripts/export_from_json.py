@@ -215,6 +215,13 @@ def main(argv):
             size = np.array(object_info["size"])
             translation[1] = size[1]
 
+            if "fastsynth" in str(json_path):
+                class_objects = objects_dataset._filter_objects_by_label(object_info["category"])
+                sampled_object = np.random.choice(class_objects)
+                height = sampled_object.size[1]
+                translation[1] = height
+                size[1] = height
+
             if contains_query and object_idx == (len(object_info_list) - 1):
                 translation[1] = 0
 

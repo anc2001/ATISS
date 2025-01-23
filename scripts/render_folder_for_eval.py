@@ -194,6 +194,12 @@ def main(argv):
                 translation = rot_180_z.apply(translation)
                 size = np.array(object_info["size"])
                 translation[1] = size[1]
+                if "fastsynth" in str(args.input_dir):
+                    class_objects = objects_dataset._filter_objects_by_label(object_info["category"])
+                    sampled_object = np.random.choice(class_objects)
+                    height = sampled_object.size[1]
+                    translation[1] = height
+                    size[1] = height
 
                 box = {
                     "class_labels": torch.from_numpy(classes == object_info["category"])

@@ -91,17 +91,36 @@ def setup_lighting(query=False):
         rotation_matrix = Matrix((x_axis, y_axis, z_axis)).transposed()
         area.matrix_world = Matrix.Translation(location) @ rotation_matrix.to_4x4()
     else:
-        bpy.ops.object.light_add(type='POINT', location=(5, -5, 5))
-        light = bpy.context.object
-        light.data.energy = 1000
+#        # 3 point lighting
+#        bpy.ops.object.light_add(type='POINT', location=(5, -5, 5))
+#        light = bpy.context.object
+#        light.data.energy = 1000
+#
+#        bpy.ops.object.light_add(type='POINT', location=(-5, -5, 5))
+#        light = bpy.context.object
+#        light.data.energy = 1000
+#
+#        bpy.ops.object.light_add(type='POINT', location=(-5, 5, 5))
+#        light = bpy.context.object
+#        light.data.energy = 500
+#
+#        bpy.ops.object.light_add(type='SUN', location=(5, 5, 5))
+#        sun = bpy.context.object
+#        sun.data.energy = 3.0
+#
+        location = (5, 5, 10)
+        bpy.ops.object.light_add(type='AREA')
+        area = bpy.context.object
+        area.data.energy = 1000 
+        area.data.size = 5
 
-        bpy.ops.object.light_add(type='POINT', location=(-5, -5, 5))
-        light = bpy.context.object
-        light.data.energy = 1000
-
-        bpy.ops.object.light_add(type='POINT', location=(-5, 5, 5))
-        light = bpy.context.object
-        light.data.energy = 500
+        up_vector = Vector((0, 0, 1))
+        look_vector = -(Vector((0, 0, 0)) - Vector(location)).normalized()
+        z_axis = look_vector
+        x_axis = up_vector.cross(z_axis).normalized()
+        y_axis = z_axis.cross(x_axis).normalized()
+        rotation_matrix = Matrix((x_axis, y_axis, z_axis)).transposed()
+        area.matrix_world = Matrix.Translation(location) @ rotation_matrix.to_4x4()
 
 
 def set_camera(location, up_vector, target_position):
@@ -163,7 +182,7 @@ def render_viewpoints(output_folder, viewpoints, resolution=(1920, 1080)):
 def process_folder(input_folder, resolution):
     if (input_folder / "scene_mesh").exists():
         viewpoints = [
-            ((0, 0, 14), (1, 0, 0), (0, 0, 0)),  # (location, up_vector, target_position)
+            ((0, 0, 16), (1, 0, 0), (0, 0, 0)),  # (location, up_vector, target_position)
             # ((8, 8, 9.5), (0, 0, 1), (0, 0, 0)),
             # ((-8, 8, 9.5), (0, 0, 1), (0, 0, 0)),
             # ((-8, -8, 9.5), (0, 0, 1), (0, 0, 0)),

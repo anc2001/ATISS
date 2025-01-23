@@ -61,11 +61,8 @@ def main(argv):
     parser.add_argument(
         "path_to_pickled_3d_futute_models", help="Path to the 3D-FUTURE model meshes"
     )
-    parser.add_argument(
-        "scene_folder",
-        type=Path,
-        help="Path to annotated info",
-    )
+    parser.add_argument("parent_dir", type=Path)
+    parser.add_argument("room_type")
     parser.add_argument(
         "--background",
         type=lambda x: list(map(float, x.split(","))),
@@ -119,177 +116,190 @@ def main(argv):
         near=0.1,
         far=6,
     )
+    
+    if args.room_type == "bedroom":
+        indices = [551615, 690142, 468651, 678957, 641046, 617452, 516989]
+    elif args.room_type == "library":
+        indices = [44106, 35759, 21213, 1285, 14256, 1610, 1285] # add one more
+    elif args.room_type == "livingroom":
+        indices = [693341, 10902, 144888, 288928, 323326, 487297, 576863]
+    elif args.room_type == "diningroom":
+        indices = [549219, 1571794, 934950, 128058, 2012083, 2235455, 2561243]
+    else:
+        print(args.room_type, "not recognized")
+        exit()
 
-    scene_folder = args.scene_folder
-    with open(scene_folder / "scene.json", 'r') as f:
-        subscene_info = json.load(f)
+    for idx in indices:
+        scene_folder = args.parent_dir / args.room_type / "idx" / str(idx)
+        with open(scene_folder / "scene.json", 'r') as f:
+            subscene_info = json.load(f)
 
-    # Get a floor plan
-    vertices = np.array(subscene_info['vertices'])
-    faces = np.array(subscene_info['faces'])
+        # Get a floor plan
+        vertices = np.array(subscene_info['vertices'])
+        faces = np.array(subscene_info['faces'])
 
-    # Apply correction to align with our rendering
-    rot_180_z = Rotation.from_rotvec([0, 0, np.pi])
-    vertices = rot_180_z.apply(vertices)
-    faces = faces[:, ::-1]
+        # Apply correction to align with our rendering
+        rot_180_z = Rotation.from_rotvec([0, 0, np.pi])
+        vertices = rot_180_z.apply(vertices)
+        faces = faces[:, ::-1]
 
-    floor_plan = Mesh.from_faces(vertices, faces, (0.7, 0.7, 0.7, 1.0))
-    floor_plan_tr = trimesh.Trimesh(vertices = vertices, faces = faces)
-    floor_plan_tr.vertex_colors = (0.7, 0.7, 0.7, 1.0)
-    floor_plan = [floor_plan]
+        floor_plan = Mesh.from_faces(vertices, faces, (0.7, 0.7, 0.7, 1.0))
+        floor_plan_tr = trimesh.Trimesh(vertices = vertices, faces = faces)
+        floor_plan_tr.vertex_colors = (0.7, 0.7, 0.7, 1.0)
+        floor_plan = [floor_plan]
 
-    empty_box = {
-        'class_labels' : torch.zeros((1, 1, len(classes))),
-        'translations': torch.zeros((1, 1, 3)),
-        'sizes' : torch.zeros((1, 1, 3)),
-        'angles' : torch.zeros((1, 1, 1)),
-    }
-    boxes = dict()
-    for k, v in empty_box.items():
-        boxes[k] = torch.clone(v)
-
-    object_info_list = subscene_info["objects"]
-
-    corner_pos = np.array([-3.1, 0, -3.1])
-    cell_size = 6.2 / 256
-    for object_idx, object_info in enumerate(object_info_list): 
-        if object_info["category"] in ["pendant_lamp", "ceiling_lamp"]:
-            continue
-
-        translation = np.array(object_info["translation"])
-        translation = rot_180_z.apply(translation)
-        size = np.array(object_info["size"])
-        translation[1] = size[1]
-
-        if object_idx == (len(object_info_list) - 1):
-            # x goes (l -> r), (p -> n)
-            placement_center = (translation - corner_pos) / cell_size
-            placement_x, placement_y = int(placement_center[0]), int(placement_center[2])
-            placement_x = 255 - placement_x
-            bin_width = (2 * np.pi) / 4
-            angle = object_info["rotation"][0]
-            angle = 2 * np.pi + angle if angle < 0 else angle
-            angle_idx = np.around(angle / bin_width).astype(int) % 4
-            if angle_idx % 2 == 1:
-                grid_width, grid_height = int(size[2] / cell_size), int(size[0] /cell_size)
-            else:
-                grid_width, grid_height = int(size[0] / cell_size), int(size[2] /cell_size)
-
-            grid_width += 4
-            grid_height += 4
-
-            top_left = (placement_x - grid_width, placement_y - grid_height)
-            bottom_right = (placement_x + grid_width, placement_y + grid_height)
-
-        box = {
-            "class_labels": torch.from_numpy(classes == object_info["category"])
-            .float()
-            .view(1, 1, len(classes)),
-            "translations": torch.from_numpy(translation)
-            .float()
-            .view(1, 1, 3),
-            "sizes": torch.from_numpy(size).float().view(1, 1, 3),
-            "angles": torch.from_numpy(np.array(object_info["rotation"]))
-            .float()
-            .view(1, 1, 1),
+        empty_box = {
+            'class_labels' : torch.zeros((1, 1, len(classes))),
+            'translations': torch.zeros((1, 1, 3)),
+            'sizes' : torch.zeros((1, 1, 3)),
+            'angles' : torch.zeros((1, 1, 1)),
         }
-        for k in box.keys():
-            boxes[k] = torch.cat([boxes[k], box[k]], dim=1)
+        boxes = dict()
+        for k, v in empty_box.items():
+            boxes[k] = torch.clone(v)
 
-    for k in empty_box.keys():
-        boxes[k] = torch.cat([boxes[k], torch.clone(empty_box[k])], dim=1)
+        object_info_list = subscene_info["objects"]
 
-    bbox_params_t = (
-        torch.cat(
-            [
-                boxes["class_labels"],
-                boxes["translations"],
-                boxes["sizes"],
-                boxes["angles"],
-            ],
-            dim=-1,
+        corner_pos = np.array([-3.1, 0, -3.1])
+        cell_size = 6.2 / 256
+        for object_idx, object_info in enumerate(object_info_list): 
+            if object_info["category"] in ["pendant_lamp", "ceiling_lamp"]:
+                continue
+
+            translation = np.array(object_info["translation"])
+            translation = rot_180_z.apply(translation)
+            size = np.array(object_info["size"])
+            translation[1] = size[1]
+
+            if object_idx == (len(object_info_list) - 1):
+                # x goes (l -> r), (p -> n)
+                placement_center = (translation - corner_pos) / cell_size
+                placement_x, placement_y = int(placement_center[0]), int(placement_center[2])
+                placement_x = 255 - placement_x
+                bin_width = (2 * np.pi) / 4
+                angle = object_info["rotation"][0]
+                angle = 2 * np.pi + angle if angle < 0 else angle
+                angle_idx = np.around(angle / bin_width).astype(int) % 4
+                if angle_idx % 2 == 1:
+                    grid_width, grid_height = int(size[2] / cell_size), int(size[0] /cell_size)
+                else:
+                    grid_width, grid_height = int(size[0] / cell_size), int(size[2] /cell_size)
+
+                grid_width += 4
+                grid_height += 4
+
+                top_left = (placement_x - grid_width, placement_y - grid_height)
+                bottom_right = (placement_x + grid_width, placement_y + grid_height)
+
+            box = {
+                "class_labels": torch.from_numpy(classes == object_info["category"])
+                .float()
+                .view(1, 1, len(classes)),
+                "translations": torch.from_numpy(translation)
+                .float()
+                .view(1, 1, 3),
+                "sizes": torch.from_numpy(size).float().view(1, 1, 3),
+                "angles": torch.from_numpy(np.array(object_info["rotation"]))
+                .float()
+                .view(1, 1, 1),
+            }
+            for k in box.keys():
+                boxes[k] = torch.cat([boxes[k], box[k]], dim=1)
+
+        for k in empty_box.keys():
+            boxes[k] = torch.cat([boxes[k], torch.clone(empty_box[k])], dim=1)
+
+        bbox_params_t = (
+            torch.cat(
+                [
+                    boxes["class_labels"],
+                    boxes["translations"],
+                    boxes["sizes"],
+                    boxes["angles"],
+                ],
+                dim=-1,
+            )
+            .cpu()
+            .numpy()
         )
-        .cpu()
-        .numpy()
-    )
 
-    renderables, tr_meshes, colors = get_textured_objects(
-        bbox_params_t, 
-        objects_dataset, 
-        classes,
-    )
+        renderables, tr_meshes, colors = get_textured_objects(
+            bbox_params_t, 
+            objects_dataset, 
+            classes,
+        )
 
-    query_tr_mesh = tr_meshes[-1]
-    query_renderable = renderables[-1]
+        query_tr_mesh = tr_meshes[-1]
+        query_renderable = renderables[-1]
 
-    tr_meshes = tr_meshes[:-1]
-    renderables = renderables[:-1]
+        tr_meshes = tr_meshes[:-1]
+        renderables = renderables[:-1]
 
-    mask_folder = scene_folder / "masks"
-    mask_folder.mkdir(exist_ok = True)
+        mask_folder = scene_folder / "masks"
+        mask_folder.mkdir(exist_ok = True)
 
-    # render scene query original query image 
-    path_to_image = mask_folder / "scene_image.png"
-    behaviors = [SaveFrames(str(path_to_image), 1)]
+        # render scene query original query image 
+        path_to_image = mask_folder / "scene_image.png"
+        behaviors = [SaveFrames(str(path_to_image), 1)]
 
-    renderables += floor_plan
-    render(
-        renderables + [query_renderable],
-        behaviours=behaviors,
-        size=args.window_size,
-        camera_position=(0, 4, 0),
-        camera_target=(0, 0, 0),
-        up_vector=(1, 0, 0),
-        background=args.background,
-        n_frames=1,
-        scene=scene,
-    )
-    # this is in BGR
-    img = cv2.imread(path_to_image)
-    img = cv2.rectangle(
-        img, 
-        (top_left[1], top_left[0]), 
-        (bottom_right[1], bottom_right[0]), 
-        (0, 255, 0), 
-        2
-    )
-    cv2.imwrite(path_to_image, img)
+        renderables += floor_plan
+        render(
+            renderables + [query_renderable],
+            behaviours=behaviors,
+            size=args.window_size,
+            camera_position=(0, 4, 0),
+            camera_target=(0, 0, 0),
+            up_vector=(1, 0, 0),
+            background=args.background,
+            n_frames=1,
+            scene=scene,
+        )
+        # this is in BGR
+        img = cv2.imread(path_to_image)
+        img = cv2.rectangle(
+            img, 
+            (top_left[1], top_left[0]), 
+            (bottom_right[1], bottom_right[0]), 
+            (0, 255, 0), 
+            2
+        )
+        cv2.imwrite(path_to_image, img)
 
-    path_to_image = mask_folder / "scene_no_query.png"
-    behaviors = [SaveFrames(str(path_to_image), 1)]
+        path_to_image = mask_folder / "scene_no_query.png"
+        behaviors = [SaveFrames(str(path_to_image), 1)]
 
-    render(
-        renderables,
-        behaviours=behaviors,
-        size=args.window_size,
-        camera_position=(0, 4, 0),
-        camera_target=(0, 0, 0),
-        up_vector=(1, 0, 0),
-        background=args.background,
-        n_frames=1,
-        scene=scene,
-    )
+        render(
+            renderables,
+            behaviours=behaviors,
+            size=args.window_size,
+            camera_position=(0, 4, 0),
+            camera_target=(0, 0, 0),
+            up_vector=(1, 0, 0),
+            background=args.background,
+            n_frames=1,
+            scene=scene,
+        )
 
-    scene_image = np.array(Image.open(path_to_image)) / 255.0
-    # set opacity of scene image to be lower
-    scene_image[..., 3]  = 0.5
-    data = np.load(scene_folder  / "masks.npz")
-    masks = data["masks"] 
-    names = data["names"]
-    assert len(names) == len(masks)
-    for mask_idx in range(len(masks)):
-        name = names[mask_idx]
-        overlay = np.array(scene_image)
+        scene_image = np.array(Image.open(path_to_image)) / 255.0
+        # set opacity of scene image to be lower
+        scene_image[..., 3]  = 0.5
+        data = np.load(scene_folder  / "masks.npz")
+        masks = data["masks"] 
+        names = data["names"]
+        assert len(names) == len(masks)
+        for mask_idx in range(len(masks)):
+            name = names[mask_idx]
+            overlay = np.array(scene_image)
 
-        mask = masks[mask_idx].astype(bool)
+            mask = masks[mask_idx].astype(bool)
 
-        mask_image = np.zeros((256, 256, 3))
-        mask_image[mask] = [1.0, 0, 0]
-        mask_image = Image.fromarray(np.uint8(mask_image * 255))
+            mask_image = np.zeros((256, 256, 3))
+            mask_image[mask] = [1.0, 0, 0]
+            mask_image = Image.fromarray(np.uint8(mask_image * 255))
 
-        overlay[mask] = [1.0, 0, 0, 1.0]
-        overlay = Image.fromarray(np.uint8(overlay * 255))
-        overlay.save(mask_folder / f"{name}.png")
+            overlay[mask] = [1.0, 0, 0, 1.0]
+            overlay = Image.fromarray(np.uint8(overlay * 255))
+            overlay.save(mask_folder / f"{name}.png")
 
     vdisplay.stop()
 
